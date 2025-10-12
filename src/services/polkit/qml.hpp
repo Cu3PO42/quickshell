@@ -2,10 +2,6 @@
 
 #include <deque>
 
-#include <polkit-qt6-1/polkitqt1-agent-listener.h>
-#include <polkit-qt6-1/polkitqt1-agent-session.h>
-#include <polkit-qt6-1/polkitqt1-details.h>
-#include <polkit-qt6-1/polkitqt1-identity.h>
 #include <qobject.h>
 #include <qqmlintegration.h>
 #include <qqmlparserstatus.h>
@@ -14,23 +10,13 @@
 #include "../../core/doc.hpp"
 #include "../../core/model.hpp"
 
+typedef struct _PolkitIdentity PolkitIdentity;
+typedef struct _QsPolkitAgent QsPolkitAgent;
+
 namespace qs::service::polkit {
 
-//! All state that comes in from PolKit about an authentication request.
-struct AuthRequest {
-	//! The action ID that this session is for.
-	QString actionId;
-	//! Message to present to the user.
-	QString message;
-	//! Icon name according to the FreeDesktop specification. May be empty.
-	QString iconName;
-	// Details intentionally omitted because nothing seems to use them.
-	QString cookie;
-	//! List of users/groups that can be used for authentication.
-	PolkitQt1::Identity::List identities;
-	//! Implementation detail to mark authentication done.
-	PolkitQt1::Agent::AsyncResult* result;
-};
+struct AuthRequest;
+class Session;
 
 //! Represents a user or group that can be used to authenticate.
 class Identity: public QObject {
@@ -66,7 +52,7 @@ public:
 	    QString displayName,
 	    QString icon,
 	    bool isGroup,
-	    PolkitQt1::Identity polkitIdentity,
+	    PolkitIdentity* polkitIdentity,
 	    QObject* parent = nullptr
 	);
 	~Identity() override;
@@ -77,7 +63,7 @@ public:
 	[[nodiscard]] const QString& icon() const;
 	[[nodiscard]] bool isGroup() const;
 
-	const PolkitQt1::Identity polkitIdentity;
+	PolkitIdentity* polkitIdentity;
 
 private:
 	id_t mId;
@@ -141,7 +127,7 @@ private:
 
 //! Contains interface to instantiate a PolKit agent listener.
 class PolkitAgent
-    : public PolkitQt1::Agent::Listener
+    : public QObject
     , public QQmlParserStatus {
 	Q_OBJECT;
 	QML_ELEMENT;
@@ -203,6 +189,11 @@ public:
 	void classBegin() override;
 	void componentComplete() override;
 
+	/// Incoming request from the PolKit daemon to authenticate an action.
+	void initiateAuthentication(AuthRequest* request);
+	/// Cancel authentication for a specific request from daemon.
+	void cancelAuthentication(AuthRequest* request);
+
 	/// Submit a response to a request that was previously emitted. Typically the password.
 	Q_INVOKABLE void submit(const QString& value);
 
@@ -262,26 +253,7 @@ signals:
 	/// Emitted when the user needs to provide input to continue authentication.
 	void inputRequestChanged();
 
-public slots:
-
 private slots:
-	// Implementation of the PolkitQt1::Agent::Listener interface.
-	// We mark this private even though it's public in the base class since it
-	// should not be called by anything other than PolkitQt1 itself.
-
-	void initiateAuthentication(
-	    const QString& actionId,
-	    const QString& message,
-	    const QString& iconName,
-	    const PolkitQt1::Details& details,
-	    const QString& cookie,
-	    const PolkitQt1::Identity::List& identities,
-	    PolkitQt1::Agent::AsyncResult* result
-	) override;
-
-	bool initiateAuthenticationFinish() override;
-	void cancelAuthentication() override;
-
 	// Signals received from session objects.
 
 	void request(const QString& message, bool echo);
@@ -290,8 +262,11 @@ private slots:
 	void showInfo(const QString& message);
 
 private:
+	/// Start handling of the next authentication request in the queue.
 	void activateAuthenticationRequest();
+	/// Start a session for the currently selected identity and the current request.
 	void setupSession();
+	/// Finalize and remove the current authentication request.
 	void finishAuthenticationRequest();
 
 	QString mPath = "";
@@ -301,8 +276,9 @@ private:
 	InputRequest* mInputRequest = nullptr;
 	SubMessage* mSubMessage = nullptr;
 
-	std::deque<AuthRequest> queuedRequests;
-	PolkitQt1::Agent::Session* currentSession = nullptr;
+	QsPolkitAgent* listener = nullptr;
+	std::deque<AuthRequest*> queuedRequests;
+	Session* currentSession = nullptr;
 
 	bool isCancelled = false;
 };

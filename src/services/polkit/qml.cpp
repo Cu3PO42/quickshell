@@ -1,12 +1,14 @@
 #include "qml.hpp"
+#include "listener.hpp"
+#include "session.hpp"
 
 #include <grp.h>
-#include <polkit-qt6-1/polkitqt1-details.h>
-#include <polkit-qt6-1/polkitqt1-subject.h>
 #include <pwd.h>
 #include <qdir.h>
 #include <qfile.h>
 #include <qtimer.h>
+#include <polkitagent/polkitagent.h>
+#include <polkit/polkit.h>
 
 namespace qs::service::polkit {
 
@@ -18,11 +20,11 @@ Identity::Identity(
     QString displayName,
     QString icon,
     bool isGroup,
-    PolkitQt1::Identity polkitIdentity,
+    PolkitIdentity* polkitIdentity,
     QObject* parent
 )
     : QObject(parent)
-    , polkitIdentity(std::move(polkitIdentity))
+    , polkitIdentity(polkitIdentity)
     , mId(id)
     , mName(std::move(name))
     , mDisplayName(std::move(displayName))
@@ -60,23 +62,23 @@ bool InputRequest::echo() const { return mEcho; }
 static std::unordered_map<QString, PolkitAgent*> registeredAgentsByPath {};
 static std::unordered_map<QString, PolkitAgent*> waitingAgentsByPath {};
 
-PolkitAgent::PolkitAgent(QObject* parent): PolkitQt1::Agent::Listener(parent) {}
+PolkitAgent::PolkitAgent(QObject* parent): QObject(parent), listener(qs_polkit_agent_new(this)) {}
 
 PolkitAgent::~PolkitAgent() {
 	// First, destroy all but the first request in the queue, so that the cancel
 	// method doesn't start a new one.
 	for (; queuedRequests.size() > 1; queuedRequests.pop_back()) {
-		AuthRequest& req = queuedRequests.back();
+		AuthRequest& req = *queuedRequests.back();
 		qDebug() << "PolkitAgent: destroying queued authentication request for action" << req.actionId;
-		if (req.result) {
-			req.result->setError("PolkitAgent is being destroyed");
-			req.result->setCompleted();
-		}
+		req.cancel("PolkitAgent is being destroyed");
 	}
 
 	if (!queuedRequests.empty()) {
 		cancelAuthenticationRequest();
 	}
+
+	qs_polkit_agent_unregister(listener);
+	g_object_unref(listener);
 
 	if (auto it = registeredAgentsByPath.find(mPath);
 	    it != registeredAgentsByPath.end() && it->second == this)
@@ -87,8 +89,7 @@ PolkitAgent::~PolkitAgent() {
 		// are destroyed. Therefore the new agent cannot take over the path still in
 		// use by the old agent.
 		if (auto it = waitingAgentsByPath.find(mPath); it != waitingAgentsByPath.end()) {
-			// Retry registration for the waiting agent on the next tick after the
-			// destructor has finished and deregistered this agent.
+			// Retry registration for the waiting agent on the next tick.
 			QTimer::singleShot(0, it->second, &PolkitAgent::componentComplete);
 		}
 	}
@@ -107,8 +108,7 @@ void PolkitAgent::classBegin() {
 void PolkitAgent::componentComplete() {
 	if (!mPath.isEmpty()) {
 		qDebug() << "PolkitAgent: registering listener on path" << mPath;
-		PolkitQt1::UnixSessionSubject session(getpid());
-		if (registerListener(session, mPath)) {
+		if (qs_polkit_agent_register(listener)) {
 			registeredAgentsByPath[mPath] = this;
 			// If we were previously waiting to acquire this path, we no longer
 			// are.
@@ -131,7 +131,7 @@ void PolkitAgent::componentComplete() {
 void PolkitAgent::submit(const QString& value) {
 	qDebug() << "PolkitAgent: submitting response for authentication request";
 	if (currentSession) {
-		currentSession->setResponse(value);
+		currentSession->respond(value);
 	}
 }
 
@@ -140,7 +140,6 @@ void PolkitAgent::cancelAuthenticationRequest() {
 
 	if (currentSession) {
 		currentSession->cancel();
-		currentSession->result()->setCompleted();
 		isCancelled = true;
 	}
 }
@@ -161,21 +160,21 @@ const QString& PolkitAgent::activeMessage() const {
 	if (queuedRequests.empty()) {
 		return emptyString;
 	}
-	return queuedRequests.front().message;
+	return queuedRequests.front()->message;
 }
 
 const QString& PolkitAgent::activeIconName() const {
 	if (queuedRequests.empty()) {
 		return emptyString;
 	}
-	return queuedRequests.front().iconName;
+	return queuedRequests.front()->iconName;
 }
 
 const QString& PolkitAgent::activeActionId() const {
 	if (queuedRequests.empty()) {
 		return emptyString;
 	}
-	return queuedRequests.front().actionId;
+	return queuedRequests.front()->actionId;
 }
 
 ObjectModel<Identity>* PolkitAgent::activeIdentities() { return &mIdentities; }
@@ -207,47 +206,37 @@ InputRequest* PolkitAgent::inputRequest() const { return mInputRequest; }
 
 SubMessage* PolkitAgent::subMessage() const { return mSubMessage; }
 
-void PolkitAgent::initiateAuthentication(
-    const QString& actionId,
-    const QString& message,
-    const QString& iconName,
-    const PolkitQt1::Details&,
-    const QString& cookie,
-    const PolkitQt1::Identity::List& identities,
-    PolkitQt1::Agent::AsyncResult* result
-) {
-	qDebug() << "PolkitAgent: incoming authentication request for action" << actionId;
+void PolkitAgent::initiateAuthentication(AuthRequest* request) {
+	qDebug() << "PolkitAgent: incoming authentication request for action" << request->actionId;
 
-	queuedRequests.emplace_back(actionId, message, iconName, cookie, identities, result);
+	queuedRequests.emplace_back(request);
 
 	if (queuedRequests.size() == 1) {
 		activateAuthenticationRequest();
 	}
 }
 
-bool PolkitAgent::initiateAuthenticationFinish() { return true; }
-
-void PolkitAgent::cancelAuthentication() {
+void PolkitAgent::cancelAuthentication(AuthRequest* request) {
 	qDebug() << "PolkitAgent: cancelling authentication request from agent";
 
-	if (queuedRequests.empty()) {
-		return;
-	}
+	if (!queuedRequests.empty() && request == queuedRequests.front()) {
+		if (currentSession) {
+			currentSession->cancel();
+		}
+		isCancelled = true;
 
-	// Any of the queued requests may be cancelled, but polkit-qt-1 doesn't tell
-	// us which one. We assume it's the current one, but this might be wrong.
-	if (queuedRequests.size() > 1) {
-		qWarning() << "PolkitAgent: cancelling an authentication request while others are queued. This "
-		              "may lead to errors.";
+		emit authenticationRequestCancelled();
+	} else if (auto it = std::find(queuedRequests.begin(), queuedRequests.end(), request);
+	           it != queuedRequests.end())
+	{
+		qDebug() << "PolkitAgent: removing queued authentication request for action"
+		         << (*it)->actionId;
+		(*it)->cancel("Authentication request was cancelled");
+		(*it)->deleteLater();
+		queuedRequests.erase(it);
+	} else {
+		qWarning() << "PolkitAgent: the cancelled request was not found in the queue.";
 	}
-
-	if (currentSession) {
-		currentSession->cancel();
-		currentSession->result()->setCompleted();
-	}
-	isCancelled = true;
-
-	emit authenticationRequestCancelled();
 }
 
 void PolkitAgent::request(const QString& message, bool echo) {
@@ -264,13 +253,14 @@ void PolkitAgent::request(const QString& message, bool echo) {
 void PolkitAgent::completed(bool gainedAuthorization) {
 	qDebug() << "PolkitAgent: authentication request completed";
 
+	auto& req = *queuedRequests.front();
 	if (gainedAuthorization) {
-		currentSession->result()->setCompleted();
-
 		emit authenticationSucceeded();
 
+		req.complete();
 		finishAuthenticationRequest();
 	} else if (isCancelled) {
+		req.cancel("Authentication request was cancelled");
 		finishAuthenticationRequest();
 	} else {
 		emit authenticationFailed();
@@ -306,7 +296,7 @@ void PolkitAgent::activateAuthenticationRequest() {
 		return;
 	}
 
-	AuthRequest& req = queuedRequests.front();
+	AuthRequest& req = *queuedRequests.front();
 
 	qDebug() << "PolkitAgent: activating authentication request for action" << req.actionId;
 
@@ -315,15 +305,11 @@ void PolkitAgent::activateAuthenticationRequest() {
 	//       objects.
 	mIdentities.diffUpdate({});
 
-	for (auto& identity: req.identities) {
+	for (auto identity: req.identities) {
 		Identity* obj;
-		// PolkitQt1::Identity doesn't expose a cleaner way to determine the
-		// kind of identity, unfortunately.
-		// By dropping down into the GObject interface to Polkit, we could
-		// use POLKIT_IDENTITY_IS_UNIX_USER.
-		auto identityString = identity.toString();
-		if (identityString.startsWith("unix-user:")) {
-			auto uid = identity.toUnixUserIdentity().uid();
+
+		if (POLKIT_IS_UNIX_USER(identity)) {
+			auto uid = polkit_unix_user_get_uid(POLKIT_UNIX_USER(identity));
 			auto pw = getpwuid(uid);
 			auto name = (pw && pw->pw_name && *pw->pw_name) ? QString::fromUtf8(pw->pw_name)
 			                                                : QString::number(uid);
@@ -345,8 +331,8 @@ void PolkitAgent::activateAuthenticationRequest() {
 			);
 		}
 
-		if (identityString.startsWith("unix-group:")) {
-			auto gid = identity.toUnixGroupIdentity().gid();
+		if (POLKIT_IS_UNIX_GROUP(identity)) {
+			auto gid = polkit_unix_group_get_gid(POLKIT_UNIX_GROUP(identity));
 			auto gr = getgrgid(gid);
 			auto name = (gr && gr->gr_name && *gr->gr_name) ? QString::fromUtf8(gr->gr_name)
 			                                                : QString::number(gid);
@@ -374,9 +360,9 @@ void PolkitAgent::activateAuthenticationRequest() {
 		qWarning(
 		) << "PolkitAgent: no supported identities available for authentication request, cancelling.";
 
-		req.result->setError("Error requesting authentication: no supported identities available.");
-		req.result->setCompleted();
+		req.cancel("Error requesting authentication: no supported identities available.");
 
+		req.deleteLater();
 		queuedRequests.pop_front();
 		return;
 	}
@@ -388,13 +374,12 @@ void PolkitAgent::activateAuthenticationRequest() {
 }
 
 void PolkitAgent::setupSession() {
-	AuthRequest& req = queuedRequests.front();
+	AuthRequest& req = *queuedRequests.front();
 
 	qDebug() << "PolkitAgent: setting up authentication session for identity"
 	         << (mSelectedIdentity ? mSelectedIdentity->name() : "<null>");
 
-	currentSession =
-	    new PolkitQt1::Agent::Session(mSelectedIdentity->polkitIdentity, req.cookie, req.result);
+	currentSession = new Session(mSelectedIdentity->polkitIdentity, req.cookie);
 
 	connect(currentSession, SIGNAL(request(QString, bool)), this, SLOT(request(QString, bool)));
 	connect(currentSession, SIGNAL(completed(bool)), this, SLOT(completed(bool)));
@@ -410,8 +395,9 @@ void PolkitAgent::finishAuthenticationRequest() {
 	}
 
 	qDebug() << "PolkitAgent: finishing authentication request for action"
-	         << queuedRequests.front().actionId;
+	         << queuedRequests.front()->actionId;
 
+	queuedRequests.front()->deleteLater();
 	queuedRequests.pop_front();
 
 	currentSession->deleteLater();

@@ -10,7 +10,6 @@
   ninja,
   spirv-tools,
   qt6,
-  kdePackages,
   breakpad,
   jemalloc,
   cli11,
@@ -22,6 +21,8 @@
   libgbm ? null,
   pipewire,
   pam,
+  polkit,
+  glib,
 
   gitRev ? (let
     headExists = builtins.pathExists ./.git/HEAD;
@@ -79,7 +80,7 @@
     ++ lib.optional withX11 xorg.libxcb
     ++ lib.optional withPam pam
     ++ lib.optional withPipewire pipewire
-    ++ lib.optional withPolkit kdePackages.polkit-qt-1;
+    ++ lib.optionals withPolkit [ polkit glib ];
 
     cmakeBuildType = if debug then "Debug" else "RelWithDebInfo";
 

@@ -197,7 +197,7 @@ This feature enables creating Polkit agents that can prompt user for authenticat
 
 To disable: `-DSERVICE_POLKIT=OFF`
 
-Dependencies: `polkit-qt-1`
+Dependencies: `polkit`, `glib`
 
 ### Hyprland
 This feature enables hyprland specific integrations. It requires wayland support

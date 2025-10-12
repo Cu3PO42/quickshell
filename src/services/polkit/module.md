@@ -1,6 +1,6 @@
 name = "Quickshell.Services.Polkit"
 description = "Polkit API"
-headers = [qml.hpp]
+headers = [qml.hpp, listener.hpp]
 -----
 
 ## Purpose of a Polkit Agent

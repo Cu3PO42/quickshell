@@ -42,7 +42,7 @@
                   libxcb
                   libxkbcommon
                   linux-pam
-                  polkit-qt
+                  polkit
                   mesa
                   pipewire
                   qtbase
