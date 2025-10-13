@@ -57,6 +57,9 @@ void Session::respond(const QString& response) {
 }
 
 void Session::destroy() {
+	// Signals do not need to be disconnected explicitly. This happens during
+	// destruction of the gobject. Since we own the session object, we can be
+	// sure it is being destroyed after the unref.
 	if (session) {
 		g_object_unref(session);
 		session = nullptr;
