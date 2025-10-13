@@ -162,8 +162,7 @@ class PolkitAgent
 	/// Each identity may be a user or a group. You may select any of them to
 	/// authenticate by setting @@selectedIdentity. By default, the first identity
 	/// in the list is selected.
-	QSDOC_TYPE_OVERRIDE(ObjectModel<Identity>*)
-	Q_PROPERTY(UntypedObjectModel* identities READ activeIdentities NOTIFY authenticationRequestStarted);
+	Q_PROPERTY(QList<Identity*> identities READ activeIdentities NOTIFY authenticationRequestStarted);
 
 	/// The identity that will be used to authenticate.
 	/// 
@@ -207,7 +206,7 @@ public:
 	[[nodiscard]] const QString& activeMessage() const;
 	[[nodiscard]] const QString& activeIconName() const;
 	[[nodiscard]] const QString& activeActionId() const;
-	[[nodiscard]] ObjectModel<Identity>* activeIdentities();
+	[[nodiscard]] const QList<Identity*>& activeIdentities() const;
 
 	[[nodiscard]] Identity* selectedIdentity() const;
 	void setSelectedIdentity(Identity* identity);
@@ -270,7 +269,7 @@ private:
 	void finishAuthenticationRequest();
 
 	QString mPath = "";
-	ObjectModel<Identity> mIdentities {this};
+	QList<Identity*> mIdentities;
 	Identity* mSelectedIdentity = nullptr;
 
 	InputRequest* mInputRequest = nullptr;

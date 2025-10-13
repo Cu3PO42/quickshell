@@ -177,7 +177,7 @@ const QString& PolkitAgent::activeActionId() const {
 	return queuedRequests.front()->actionId;
 }
 
-ObjectModel<Identity>* PolkitAgent::activeIdentities() { return &mIdentities; }
+const QList<Identity*>& PolkitAgent::activeIdentities() const { return mIdentities; }
 
 Identity* PolkitAgent::selectedIdentity() const { return mSelectedIdentity; }
 
@@ -300,10 +300,10 @@ void PolkitAgent::activateAuthenticationRequest() {
 
 	qDebug() << "PolkitAgent: activating authentication request for action" << req.actionId;
 
-	// TODO: Consider a better clearing strategy. This seems to be the only concise
-	//       way currently exposed. Also, consider if we're leaking the identity
-	//       objects.
-	mIdentities.diffUpdate({});
+	for (auto identity: mIdentities) {
+		delete identity;
+	}
+	mIdentities.clear();
 
 	for (auto identity: req.identities) {
 		Identity* obj;
@@ -326,8 +326,7 @@ void PolkitAgent::activateAuthenticationRequest() {
 			    (pw && pw->pw_gecos && *pw->pw_gecos) ? QString::fromUtf8(pw->pw_gecos) : name,
 			    icon,
 			    false,
-			    identity,
-			    &mIdentities
+			    identity
 			);
 		}
 
@@ -342,8 +341,7 @@ void PolkitAgent::activateAuthenticationRequest() {
 			    name,
 			    QString(), // no icon for groups
 			    true,
-			    identity,
-			    &mIdentities
+			    identity
 			);
 		}
 
@@ -351,11 +349,11 @@ void PolkitAgent::activateAuthenticationRequest() {
 		// are not supported.
 
 		if (obj) {
-			mIdentities.insertObject(obj);
+			mIdentities.append(obj);
 		}
 	}
 
-	mSelectedIdentity = mIdentities.valueList().isEmpty() ? nullptr : mIdentities.valueList().first();
+	mSelectedIdentity = mIdentities.isEmpty() ? nullptr : mIdentities.first();
 	if (mSelectedIdentity == nullptr) {
 		qWarning(
 		) << "PolkitAgent: no supported identities available for authentication request, cancelling.";
