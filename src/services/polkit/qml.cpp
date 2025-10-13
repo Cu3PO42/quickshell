@@ -133,6 +133,11 @@ void PolkitAgent::submit(const QString& value) {
 	if (currentSession) {
 		currentSession->respond(value);
 	}
+
+	// The input request is handled by the above submission.
+	mInputRequest->deleteLater();
+	mInputRequest = nullptr;
+	emit inputRequestChanged();
 }
 
 void PolkitAgent::cancelAuthenticationRequest() {
