@@ -10,6 +10,12 @@
 #include <polkitagent/polkitagent.h>
 #include <polkit/polkit.h>
 
+#include "../../core/logcat.hpp"
+
+namespace {
+QS_LOGGING_CATEGORY(logPolkit, "quickshell.service.polkit");
+}
+
 namespace qs::service::polkit {
 
 static const QString emptyString;
@@ -69,7 +75,7 @@ PolkitAgent::~PolkitAgent() {
 	// method doesn't start a new one.
 	for (; queuedRequests.size() > 1; queuedRequests.pop_back()) {
 		AuthRequest& req = *queuedRequests.back();
-		qDebug() << "PolkitAgent: destroying queued authentication request for action" << req.actionId;
+		qCDebug(logPolkit) << "destroying queued authentication request for action" << req.actionId;
 		req.cancel("PolkitAgent is being destroyed");
 	}
 
@@ -107,7 +113,7 @@ void PolkitAgent::classBegin() {
 
 void PolkitAgent::componentComplete() {
 	if (!mPath.isEmpty()) {
-		qDebug() << "PolkitAgent: registering listener on path" << mPath;
+		qCDebug(logPolkit) << "registering listener on path" << mPath;
 		if (qs_polkit_agent_register(listener)) {
 			registeredAgentsByPath[mPath] = this;
 			// If we were previously waiting to acquire this path, we no longer
@@ -118,18 +124,18 @@ void PolkitAgent::componentComplete() {
 				waitingAgentsByPath.erase(it);
 			}
 		} else {
-			qWarning() << "PolkitAgent: failed to register listener on path" << mPath;
+			qCWarning(logPolkit) << "failed to register listener on path" << mPath;
 			// We may be able to register later if the current holder of the path
 			// goes away.
 			waitingAgentsByPath[mPath] = this;
 		}
 	} else {
-		qWarning() << "PolkitAgent: no path set, not registering listener.";
+		qCWarning(logPolkit) << "no path set, not registering listener.";
 	}
 }
 
 void PolkitAgent::submit(const QString& value) {
-	qDebug() << "PolkitAgent: submitting response for authentication request";
+	qCDebug(logPolkit) << "submitting response for authentication request";
 	if (currentSession) {
 		currentSession->respond(value);
 	}
@@ -141,7 +147,7 @@ void PolkitAgent::submit(const QString& value) {
 }
 
 void PolkitAgent::cancelAuthenticationRequest() {
-	qDebug() << "PolkitAgent: cancelling authentication request by user request.";
+	qCDebug(logPolkit) << "cancelling authentication request by user request.";
 
 	if (currentSession) {
 		currentSession->cancel();
@@ -155,7 +161,7 @@ void PolkitAgent::setPath(const QString& path) {
 	if (mPath.isEmpty()) {
 		mPath = path;
 	} else if (mPath != path) {
-		qWarning() << "PolkitAgent: cannot change path after it has been set.";
+		qCWarning(logPolkit) << "cannot change path after it has been set.";
 	}
 }
 
@@ -195,7 +201,7 @@ void PolkitAgent::setSelectedIdentity(Identity* identity) {
 		return;
 	}
 
-	qDebug() << "PolkitAgent: changing selected identity to"
+	qCDebug(logPolkit) << "changing selected identity to"
 	         << (identity ? identity->name() : "<null>");
 
 	mSelectedIdentity = identity;
@@ -212,7 +218,7 @@ InputRequest* PolkitAgent::inputRequest() const { return mInputRequest; }
 SubMessage* PolkitAgent::subMessage() const { return mSubMessage; }
 
 void PolkitAgent::initiateAuthentication(AuthRequest* request) {
-	qDebug() << "PolkitAgent: incoming authentication request for action" << request->actionId;
+	qCDebug(logPolkit) << "incoming authentication request for action" << request->actionId;
 
 	queuedRequests.emplace_back(request);
 
@@ -222,7 +228,7 @@ void PolkitAgent::initiateAuthentication(AuthRequest* request) {
 }
 
 void PolkitAgent::cancelAuthentication(AuthRequest* request) {
-	qDebug() << "PolkitAgent: cancelling authentication request from agent";
+	qCDebug(logPolkit) << "cancelling authentication request from agent";
 
 	if (!queuedRequests.empty() && request == queuedRequests.front()) {
 		if (currentSession) {
@@ -234,18 +240,18 @@ void PolkitAgent::cancelAuthentication(AuthRequest* request) {
 	} else if (auto it = std::find(queuedRequests.begin(), queuedRequests.end(), request);
 	           it != queuedRequests.end())
 	{
-		qDebug() << "PolkitAgent: removing queued authentication request for action"
+		qCDebug(logPolkit) << "removing queued authentication request for action"
 		         << (*it)->actionId;
 		(*it)->cancel("Authentication request was cancelled");
 		(*it)->deleteLater();
 		queuedRequests.erase(it);
 	} else {
-		qWarning() << "PolkitAgent: the cancelled request was not found in the queue.";
+		qCWarning(logPolkit) << "the cancelled request was not found in the queue.";
 	}
 }
 
 void PolkitAgent::request(const QString& message, bool echo) {
-	qDebug() << "PolkitAgent: requesting user input for authentication";
+	qCDebug(logPolkit) << "requesting user input for authentication";
 
 	if (mInputRequest) {
 		mInputRequest->deleteLater();
@@ -256,7 +262,7 @@ void PolkitAgent::request(const QString& message, bool echo) {
 }
 
 void PolkitAgent::completed(bool gainedAuthorization) {
-	qDebug() << "PolkitAgent: authentication request completed";
+	qCDebug(logPolkit) << "authentication request completed";
 
 	auto& req = *queuedRequests.front();
 	if (gainedAuthorization) {
@@ -275,7 +281,7 @@ void PolkitAgent::completed(bool gainedAuthorization) {
 }
 
 void PolkitAgent::showError(const QString& message) {
-	qDebug() << "PolkitAgent: showing error message:" << message;
+	qCDebug(logPolkit) << "showing error message:" << message;
 
 	if (mSubMessage) {
 		mSubMessage->deleteLater();
@@ -286,7 +292,7 @@ void PolkitAgent::showError(const QString& message) {
 }
 
 void PolkitAgent::showInfo(const QString& message) {
-	qDebug() << "PolkitAgent: showing info message:" << message;
+	qCDebug(logPolkit) << "showing info message:" << message;
 
 	if (mSubMessage) {
 		mSubMessage->deleteLater();
@@ -303,7 +309,7 @@ void PolkitAgent::activateAuthenticationRequest() {
 
 	AuthRequest& req = *queuedRequests.front();
 
-	qDebug() << "PolkitAgent: activating authentication request for action" << req.actionId;
+	qCDebug(logPolkit) << "activating authentication request for action" << req.actionId;
 
 	for (auto identity: mIdentities) {
 		delete identity;
@@ -360,8 +366,7 @@ void PolkitAgent::activateAuthenticationRequest() {
 
 	mSelectedIdentity = mIdentities.isEmpty() ? nullptr : mIdentities.first();
 	if (mSelectedIdentity == nullptr) {
-		qWarning(
-		) << "PolkitAgent: no supported identities available for authentication request, cancelling.";
+		qCWarning(logPolkit) << "no supported identities available for authentication request, cancelling.";
 
 		req.cancel("Error requesting authentication: no supported identities available.");
 
@@ -379,7 +384,7 @@ void PolkitAgent::activateAuthenticationRequest() {
 void PolkitAgent::setupSession() {
 	AuthRequest& req = *queuedRequests.front();
 
-	qDebug() << "PolkitAgent: setting up authentication session for identity"
+	qCDebug(logPolkit) << "setting up authentication session for identity"
 	         << (mSelectedIdentity ? mSelectedIdentity->name() : "<null>");
 
 	currentSession = new Session(mSelectedIdentity->polkitIdentity, req.cookie);
@@ -397,8 +402,8 @@ void PolkitAgent::finishAuthenticationRequest() {
 		return;
 	}
 
-	qDebug() << "PolkitAgent: finishing authentication request for action"
-	         << queuedRequests.front()->actionId;
+	qCDebug(logPolkit) << "finishing authentication request for action"
+	                   << queuedRequests.front()->actionId;
 
 	queuedRequests.front()->deleteLater();
 	queuedRequests.pop_front();

@@ -3,7 +3,11 @@
 #include <qtimer.h>
 
 #include "qml.hpp"
+#include "../../core/logcat.hpp"
 
+namespace {
+QS_LOGGING_CATEGORY(logPolkitListener, "quickshell.service.polkit.listener", QtWarningMsg);
+}
 
 typedef struct _QsPolkitAgent {
 	PolkitAgentListener parent_instance;
@@ -56,7 +60,7 @@ QsPolkitAgent* qs_polkit_agent_new(qs::service::polkit::PolkitAgent* agent) {
 
 bool qs_polkit_agent_register(QsPolkitAgent* agent) {
 	if (agent->agent->path().isEmpty()) {
-		qWarning() << "PolkitAgent: cannot register listener without a path set.";
+		qCWarning(logPolkitListener) << "cannot register listener without a path set.";
 		return false;
 	}
 
@@ -64,7 +68,7 @@ bool qs_polkit_agent_register(QsPolkitAgent* agent) {
 	auto subject = polkit_unix_session_new_for_process_sync(getpid(), nullptr, &error);
 
 	if (subject == nullptr || error != nullptr) {
-		qWarning() << "PolkitAgent: failed to create subject for listener:" << (error ? error->message : "<unknown error>");
+		qCWarning(logPolkitListener) << "failed to create subject for listener:" << (error ? error->message : "<unknown error>");
 		g_clear_error(&error);
 		return false;
 	}
@@ -82,7 +86,7 @@ bool qs_polkit_agent_register(QsPolkitAgent* agent) {
 	g_object_unref(subject);
 
 	if (error != nullptr) {
-		qWarning() << "PolkitAgent: failed to register listener:" << error->message;
+		qCWarning(logPolkitListener) << "failed to register listener:" << error->message;
 		g_clear_error(&error);
 		return false;
 	}
