@@ -237,18 +237,9 @@ signals:
 	/// Emitted whenever an authentication request completes successfully.
 	void authenticationSucceeded();
 
-	/// Emitted whenever @@isActive changes.
 	void isActiveChanged();
-
-	/// Emitted after the identity that is authenticating has changed by user request.
 	void selectedIdentityChanged();
-
-	/// Emitted whenever the authentication conversation generates a new message to present.
-	///
-	/// This is always additional to the authentictation request's base message.
 	void subMessageChanged();
-
-	/// Emitted when the user needs to provide input to continue authentication.
 	void inputRequestChanged();
 
 private slots:
