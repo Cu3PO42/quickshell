@@ -135,10 +135,9 @@ class PolkitAgent
 
 	// clang-format off
     /// The D-Bus path that this agent listener will use.
-    ///
-    /// > [!INFO] This value can be set to any valid path and has no impact on
-    /// > the functionality of the listener.
-    Q_PROPERTY(QString path READ path WRITE setPath REQUIRED);
+	///
+	/// If not set, a default of /org/quickshell/Polkit will be used.
+    Q_PROPERTY(QString path READ path WRITE setPath);
 
 	/// Indicates an ongoing authentication request.
 	///

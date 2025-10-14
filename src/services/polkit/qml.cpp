@@ -112,25 +112,25 @@ void PolkitAgent::classBegin() {
 }
 
 void PolkitAgent::componentComplete() {
-	if (!mPath.isEmpty()) {
-		qCDebug(logPolkit) << "registering listener on path" << mPath;
-		if (qs_polkit_agent_register(listener)) {
-			registeredAgentsByPath[mPath] = this;
-			// If we were previously waiting to acquire this path, we no longer
-			// are.
-			if (auto it = waitingAgentsByPath.find(mPath);
-			    it != waitingAgentsByPath.end() && it->second == this)
-			{
-				waitingAgentsByPath.erase(it);
-			}
-		} else {
-			qCWarning(logPolkit) << "failed to register listener on path" << mPath;
-			// We may be able to register later if the current holder of the path
-			// goes away.
-			waitingAgentsByPath[mPath] = this;
+	if (mPath.isEmpty()) {
+		mPath = "/org/quickshell/Polkit";
+	}
+
+	qCDebug(logPolkit) << "registering listener on path" << mPath;
+	if (qs_polkit_agent_register(listener)) {
+		registeredAgentsByPath[mPath] = this;
+		// If we were previously waiting to acquire this path, we no longer
+		// are.
+		if (auto it = waitingAgentsByPath.find(mPath);
+			it != waitingAgentsByPath.end() && it->second == this)
+		{
+			waitingAgentsByPath.erase(it);
 		}
 	} else {
-		qCWarning(logPolkit) << "no path set, not registering listener.";
+		qCWarning(logPolkit) << "failed to register listener on path" << mPath;
+		// We may be able to register later if the current holder of the path
+		// goes away.
+		waitingAgentsByPath[mPath] = this;
 	}
 }
 
