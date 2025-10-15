@@ -113,7 +113,11 @@ void PolkitAgent::componentComplete() {
 	if (mPath.isEmpty()) mPath = "/org/quickshell/Polkit";
 
 	qCDebug(logPolkit) << "registering listener on path" << mPath;
-	if (qs_polkit_agent_register(listener)) {
+	qs_polkit_agent_register(listener);
+}
+
+void PolkitAgent::registerComplete(bool success) {
+	if (success) {
 		registeredAgentsByPath[mPath] = this;
 		// If we were previously waiting to acquire this path, we no longer
 		// are.

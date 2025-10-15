@@ -191,6 +191,8 @@ public:
 	void initiateAuthentication(AuthRequest* request);
 	/// Cancel authentication for a specific request from daemon.
 	void cancelAuthentication(AuthRequest* request);
+	/// Called from our listener when registration of the agent is complete.
+	void registerComplete(bool success);
 
 	/// Submit a response to a request that was previously emitted. Typically the password.
 	Q_INVOKABLE void submit(const QString& value);

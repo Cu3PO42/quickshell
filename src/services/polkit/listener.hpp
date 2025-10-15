@@ -49,7 +49,7 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE(QsPolkitAgent, qs_polkit_agent, QS, POLKIT_AGENT, PolkitAgentListener)
 
 QsPolkitAgent* qs_polkit_agent_new(qs::service::polkit::PolkitAgent* agent);
-bool qs_polkit_agent_register(QsPolkitAgent* agent);
+void qs_polkit_agent_register(QsPolkitAgent* agent);
 void qs_polkit_agent_unregister(QsPolkitAgent* agent);
 
 G_END_DECLS

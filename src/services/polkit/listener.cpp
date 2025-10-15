@@ -58,19 +58,28 @@ QsPolkitAgent* qs_polkit_agent_new(qs::service::polkit::PolkitAgent* agent) {
 	return self;
 }
 
-bool qs_polkit_agent_register(QsPolkitAgent* agent) {
+static void qs_polkit_agent_register_cb(GObject*, GAsyncResult* res, gpointer userData);
+void qs_polkit_agent_register(QsPolkitAgent* agent) {
 	if (agent->agent->path().isEmpty()) {
 		qCWarning(logPolkitListener) << "cannot register listener without a path set.";
-		return false;
+		agent->agent->registerComplete(false);
+		return;
 	}
 
+	polkit_unix_session_new_for_process(getpid(), nullptr, &qs_polkit_agent_register_cb, agent);
+}
+
+static void qs_polkit_agent_register_cb(GObject*, GAsyncResult* res, gpointer userData) {
+	auto agent = static_cast<QsPolkitAgent*>(userData);
+
 	GError* error = nullptr;
-	auto subject = polkit_unix_session_new_for_process_sync(getpid(), nullptr, &error);
+	auto subject = polkit_unix_session_new_for_process_finish(res, &error);
 
 	if (subject == nullptr || error != nullptr) {
 		qCWarning(logPolkitListener) << "failed to create subject for listener:" << (error ? error->message : "<unknown error>");
 		g_clear_error(&error);
-		return false;
+		agent->agent->registerComplete(false);
+		return;
 	}
 
 	auto utf8Path = agent->agent->path().toUtf8();
@@ -88,10 +97,11 @@ bool qs_polkit_agent_register(QsPolkitAgent* agent) {
 	if (error != nullptr) {
 		qCWarning(logPolkitListener) << "failed to register listener:" << error->message;
 		g_clear_error(&error);
-		return false;
+		agent->agent->registerComplete(false);
+		return;
 	}
 
-	return true;
+	agent->agent->registerComplete(true);
 }
 
 void qs_polkit_agent_unregister(QsPolkitAgent* agent) {
