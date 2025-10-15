@@ -79,9 +79,7 @@ PolkitAgent::~PolkitAgent() {
 		req.cancel("PolkitAgent is being destroyed");
 	}
 
-	if (!queuedRequests.empty()) {
-		cancelAuthenticationRequest();
-	}
+	if (!queuedRequests.empty()) cancelAuthenticationRequest();
 
 	qs_polkit_agent_unregister(listener);
 	g_object_unref(listener);
@@ -112,9 +110,7 @@ void PolkitAgent::classBegin() {
 }
 
 void PolkitAgent::componentComplete() {
-	if (mPath.isEmpty()) {
-		mPath = "/org/quickshell/Polkit";
-	}
+	if (mPath.isEmpty()) mPath = "/org/quickshell/Polkit";
 
 	qCDebug(logPolkit) << "registering listener on path" << mPath;
 	if (qs_polkit_agent_register(listener)) {
@@ -136,9 +132,7 @@ void PolkitAgent::componentComplete() {
 
 void PolkitAgent::submit(const QString& value) {
 	qCDebug(logPolkit) << "submitting response for authentication request";
-	if (currentSession) {
-		currentSession->respond(value);
-	}
+	if (currentSession) currentSession->respond(value);
 
 	// The input request is handled by the above submission.
 	mInputRequest->deleteLater();
@@ -168,23 +162,17 @@ void PolkitAgent::setPath(const QString& path) {
 bool PolkitAgent::isActive() const { return !queuedRequests.empty(); }
 
 const QString& PolkitAgent::activeMessage() const {
-	if (queuedRequests.empty()) {
-		return emptyString;
-	}
+	if (queuedRequests.empty()) return emptyString;
 	return queuedRequests.front()->message;
 }
 
 const QString& PolkitAgent::activeIconName() const {
-	if (queuedRequests.empty()) {
-		return emptyString;
-	}
+	if (queuedRequests.empty()) return emptyString;
 	return queuedRequests.front()->iconName;
 }
 
 const QString& PolkitAgent::activeActionId() const {
-	if (queuedRequests.empty()) {
-		return emptyString;
-	}
+	if (queuedRequests.empty()) return emptyString;
 	return queuedRequests.front()->actionId;
 }
 
@@ -193,13 +181,8 @@ const QList<Identity*>& PolkitAgent::activeIdentities() const { return mIdentiti
 Identity* PolkitAgent::selectedIdentity() const { return mSelectedIdentity; }
 
 void PolkitAgent::setSelectedIdentity(Identity* identity) {
-	if (queuedRequests.empty()) {
-		return;
-	}
-
-	if (mSelectedIdentity == identity) {
-		return;
-	}
+	if (queuedRequests.empty()) return;
+	if (mSelectedIdentity == identity) return;
 
 	qCDebug(logPolkit) << "changing selected identity to"
 	         << (identity ? identity->name() : "<null>");
@@ -207,9 +190,7 @@ void PolkitAgent::setSelectedIdentity(Identity* identity) {
 	mSelectedIdentity = identity;
 	emit selectedIdentityChanged();
 
-	if (currentSession) {
-		currentSession->deleteLater();
-	}
+	if (currentSession) currentSession->deleteLater();
 	setupSession();
 }
 
@@ -231,9 +212,7 @@ void PolkitAgent::cancelAuthentication(AuthRequest* request) {
 	qCDebug(logPolkit) << "cancelling authentication request from agent";
 
 	if (!queuedRequests.empty() && request == queuedRequests.front()) {
-		if (currentSession) {
-			currentSession->cancel();
-		}
+		if (currentSession) currentSession->cancel();
 		isCancelled = true;
 
 		emit authenticationRequestCancelled();
@@ -253,9 +232,7 @@ void PolkitAgent::cancelAuthentication(AuthRequest* request) {
 void PolkitAgent::request(const QString& message, bool echo) {
 	qCDebug(logPolkit) << "requesting user input for authentication";
 
-	if (mInputRequest) {
-		mInputRequest->deleteLater();
-	}
+	if (mInputRequest) mInputRequest->deleteLater();
 
 	mInputRequest = new InputRequest(message, echo, currentSession);
 	emit inputRequestChanged();
@@ -283,9 +260,7 @@ void PolkitAgent::completed(bool gainedAuthorization) {
 void PolkitAgent::showError(const QString& message) {
 	qCDebug(logPolkit) << "showing error message:" << message;
 
-	if (mSubMessage) {
-		mSubMessage->deleteLater();
-	}
+	if (mSubMessage) mSubMessage->deleteLater();
 
 	mSubMessage = new SubMessage(message, true, currentSession);
 	emit subMessageChanged();
@@ -294,18 +269,14 @@ void PolkitAgent::showError(const QString& message) {
 void PolkitAgent::showInfo(const QString& message) {
 	qCDebug(logPolkit) << "showing info message:" << message;
 
-	if (mSubMessage) {
-		mSubMessage->deleteLater();
-	}
+	if (mSubMessage) mSubMessage->deleteLater();
 
 	mSubMessage = new SubMessage(message, false, currentSession);
 	emit subMessageChanged();
 }
 
 void PolkitAgent::activateAuthenticationRequest() {
-	if (queuedRequests.empty()) {
-		return;
-	}
+	if (queuedRequests.empty()) return;
 
 	AuthRequest& req = *queuedRequests.front();
 
@@ -327,9 +298,7 @@ void PolkitAgent::activateAuthenticationRequest() {
 			QString icon;
 			if (pw && pw->pw_dir && *pw->pw_dir) {
 				icon = QString::fromUtf8(pw->pw_dir) + QDir::separator() + ".face.icon";
-				if (!QFile::exists(icon)) {
-					icon.clear();
-				}
+				if (!QFile::exists(icon)) icon.clear();
 			}
 			obj = new Identity(
 			    uid,
@@ -359,9 +328,7 @@ void PolkitAgent::activateAuthenticationRequest() {
 		// For now, other identity types (currently only PolkitUnixNetgroup)
 		// are not supported.
 
-		if (obj) {
-			mIdentities.append(obj);
-		}
+		if (obj) mIdentities.append(obj);
 	}
 
 	mSelectedIdentity = mIdentities.isEmpty() ? nullptr : mIdentities.first();
@@ -398,9 +365,7 @@ void PolkitAgent::setupSession() {
 }
 
 void PolkitAgent::finishAuthenticationRequest() {
-	if (queuedRequests.empty()) {
-		return;
-	}
+	if (queuedRequests.empty()) return;
 
 	qCDebug(logPolkit) << "finishing authentication request for action"
 	                   << queuedRequests.front()->actionId;

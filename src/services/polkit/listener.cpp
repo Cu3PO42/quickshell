@@ -132,9 +132,8 @@ static void initiate_authentication(
 	std::vector<PolkitIdentity*> identityVector;
 	for (auto item = g_list_first(identities); item != nullptr; item = g_list_next(item)) {
 		auto identity = static_cast<PolkitIdentity*>(item->data);
-		if (identitySet.contains(polkit_identity_hash(identity))) {
-			continue;
-		}
+		if (identitySet.contains(polkit_identity_hash(identity))) continue;
+
 		identitySet.insert(polkit_identity_hash(identity));
 		identityVector.push_back(identity);
 		g_object_ref(identity);
