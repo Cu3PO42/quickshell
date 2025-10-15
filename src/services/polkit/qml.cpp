@@ -389,10 +389,10 @@ void PolkitAgent::setupSession() {
 
 	currentSession = new Session(mSelectedIdentity->polkitIdentity, req.cookie);
 
-	connect(currentSession, SIGNAL(request(QString, bool)), this, SLOT(request(QString, bool)));
-	connect(currentSession, SIGNAL(completed(bool)), this, SLOT(completed(bool)));
-	connect(currentSession, SIGNAL(showError(QString)), this, SLOT(showError(QString)));
-	connect(currentSession, SIGNAL(showInfo(QString)), this, SLOT(showInfo(QString)));
+	QObject::connect(currentSession, &Session::request, this, &PolkitAgent::request);
+	QObject::connect(currentSession, &Session::completed, this, &PolkitAgent::completed);
+	QObject::connect(currentSession, &Session::showError, this, &PolkitAgent::showError);
+	QObject::connect(currentSession, &Session::showInfo, this, &PolkitAgent::showInfo);
 
 	currentSession->initiate();
 }
