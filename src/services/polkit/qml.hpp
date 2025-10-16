@@ -34,9 +34,6 @@ class Identity: public QObject {
 	/// The full name of the user or group, if available. Otherwise the same as @@name.
 	Q_PROPERTY(QString displayName READ displayName CONSTANT);
 
-	/// The full path to a file containing an icon representing this identity, if available.
-	Q_PROPERTY(QString icon READ icon CONSTANT);
-
 	/// Indicates if this identity is a group or a user.
 	///
 	/// If true, @@id is a gid, otherwise it is a uid.
@@ -50,7 +47,6 @@ public:
 	    id_t id,
 	    QString name,
 	    QString displayName,
-	    QString icon,
 	    bool isGroup,
 	    PolkitIdentity* polkitIdentity,
 	    QObject* parent = nullptr
@@ -60,7 +56,6 @@ public:
 	[[nodiscard]] id_t id() const;
 	[[nodiscard]] const QString& name() const;
 	[[nodiscard]] const QString& displayName() const;
-	[[nodiscard]] const QString& icon() const;
 	[[nodiscard]] bool isGroup() const;
 
 	PolkitIdentity* polkitIdentity;
@@ -69,7 +64,6 @@ private:
 	id_t mId;
 	QString mName;
 	QString mDisplayName;
-	QString mIcon;
 	bool mIsGroup;
 };
 

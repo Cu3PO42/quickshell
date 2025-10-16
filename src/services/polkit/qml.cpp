@@ -24,7 +24,6 @@ Identity::Identity(
     id_t id,
     QString name,
     QString displayName,
-    QString icon,
     bool isGroup,
     PolkitIdentity* polkitIdentity,
     QObject* parent
@@ -34,7 +33,6 @@ Identity::Identity(
     , mId(id)
     , mName(std::move(name))
     , mDisplayName(std::move(displayName))
-    , mIcon(std::move(icon))
     , mIsGroup(isGroup) {}
 
 Identity::~Identity() = default;
@@ -42,7 +40,6 @@ Identity::~Identity() = default;
 id_t Identity::id() const { return mId; }
 const QString& Identity::name() const { return mName; }
 const QString& Identity::displayName() const { return mDisplayName; }
-const QString& Identity::icon() const { return mIcon; }
 bool Identity::isGroup() const { return mIsGroup; }
 
 SubMessage::SubMessage(QString text, bool isError, QObject* parent)
@@ -299,16 +296,10 @@ void PolkitAgent::activateAuthenticationRequest() {
 			auto pw = getpwuid(uid);
 			auto name = (pw && pw->pw_name && *pw->pw_name) ? QString::fromUtf8(pw->pw_name)
 			                                                : QString::number(uid);
-			QString icon;
-			if (pw && pw->pw_dir && *pw->pw_dir) {
-				icon = QString::fromUtf8(pw->pw_dir) + QDir::separator() + ".face.icon";
-				if (!QFile::exists(icon)) icon.clear();
-			}
 			obj = new Identity(
 			    uid,
 			    name,
 			    (pw && pw->pw_gecos && *pw->pw_gecos) ? QString::fromUtf8(pw->pw_gecos) : name,
-			    icon,
 			    false,
 			    identity
 			);
@@ -323,7 +314,6 @@ void PolkitAgent::activateAuthenticationRequest() {
 			    gid,
 			    name,
 			    name,
-			    QString(), // no icon for groups
 			    true,
 			    identity
 			);
