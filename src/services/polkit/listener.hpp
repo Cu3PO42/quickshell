@@ -48,8 +48,9 @@ G_BEGIN_DECLS
 #define QS_TYPE_POLKIT_AGENT (qs_polkit_agent_get_type())
 G_DECLARE_FINAL_TYPE(QsPolkitAgent, qs_polkit_agent, QS, POLKIT_AGENT, PolkitAgentListener)
 
-QsPolkitAgent* qs_polkit_agent_new(qs::service::polkit::PolkitAgent* agent);
+QsPolkitAgent* qs_polkit_agent_new(qs::service::polkit::PolkitAgent* parent);
 void qs_polkit_agent_register(QsPolkitAgent* agent);
 void qs_polkit_agent_unregister(QsPolkitAgent* agent);
+void qs_polkit_agent_set_parent(QsPolkitAgent* agent, qs::service::polkit::PolkitAgent* parent);
 
 G_END_DECLS

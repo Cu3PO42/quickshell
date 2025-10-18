@@ -11,6 +11,7 @@
 #include <polkit/polkit.h>
 
 #include "../../core/logcat.hpp"
+#include "../../core/generation.hpp"
 
 namespace {
 QS_LOGGING_CATEGORY(logPolkit, "quickshell.service.polkit");
@@ -62,10 +63,8 @@ InputRequest::~InputRequest() = default;
 const QString& InputRequest::message() const { return mMessage; }
 bool InputRequest::echo() const { return mEcho; }
 
-static std::unordered_map<QString, PolkitAgent*> registeredAgentsByPath {};
-static std::unordered_map<QString, PolkitAgent*> waitingAgentsByPath {};
-
-PolkitAgent::PolkitAgent(QObject* parent): QObject(parent), listener(qs_polkit_agent_new(this)) {}
+static PolkitAgent* currentAgent = nullptr;
+PolkitAgent::PolkitAgent(QObject* parent): PostReloadHook(parent), listener(nullptr) {}
 
 PolkitAgent::~PolkitAgent() {
 	// First, destroy all but the first request in the queue, so that the cancel
@@ -78,28 +77,12 @@ PolkitAgent::~PolkitAgent() {
 
 	if (!queuedRequests.empty()) cancelAuthenticationRequest();
 
-	qs_polkit_agent_unregister(listener);
-	g_object_unref(listener);
-
-	if (auto it = registeredAgentsByPath.find(mPath);
-	    it != registeredAgentsByPath.end() && it->second == this)
-	{
-		registeredAgentsByPath.erase(mPath);
-
-		// In case of config reloads new objects are constructed before the old ones
-		// are destroyed. Therefore the new agent cannot take over the path still in
-		// use by the old agent.
-		if (auto it = waitingAgentsByPath.find(mPath); it != waitingAgentsByPath.end()) {
-			// Retry registration for the waiting agent on the next tick.
-			QTimer::singleShot(0, it->second, &PolkitAgent::componentComplete);
-		}
+	if (listener != nullptr) {
+		if (mIsRegistered) qs_polkit_agent_unregister(listener);
+		g_object_unref(listener);
 	}
 
-	if (auto it = waitingAgentsByPath.find(mPath);
-	    it != waitingAgentsByPath.end() && it->second == this)
-	{
-		waitingAgentsByPath.erase(it);
-	}
+	if (currentAgent == this) currentAgent = nullptr;
 }
 
 void PolkitAgent::classBegin() {
@@ -107,27 +90,31 @@ void PolkitAgent::classBegin() {
 }
 
 void PolkitAgent::componentComplete() {
+	PostReloadHook::componentComplete();
+
 	if (mPath.isEmpty()) mPath = "/org/quickshell/Polkit";
 
+	if (currentAgent != nullptr && currentAgent->isRegistered()) {
+		// Another agent is already running and registered. Trying to register
+		// is futile.
+		return;
+	}
+
 	qCDebug(logPolkit) << "registering listener on path" << mPath;
+	listener = qs_polkit_agent_new(this);
 	qs_polkit_agent_register(listener);
+	isRegistering = true;
 }
 
 void PolkitAgent::registerComplete(bool success) {
+	isRegistering = false;
+
 	if (success) {
-		registeredAgentsByPath[mPath] = this;
-		// If we were previously waiting to acquire this path, we no longer
-		// are.
-		if (auto it = waitingAgentsByPath.find(mPath);
-			it != waitingAgentsByPath.end() && it->second == this)
-		{
-			waitingAgentsByPath.erase(it);
-		}
+		currentAgent = this;
+		mIsRegistered = true;
+		emit isRegisteredChanged();
 	} else {
 		qCWarning(logPolkit) << "failed to register listener on path" << mPath;
-		// We may be able to register later if the current holder of the path
-		// goes away.
-		waitingAgentsByPath[mPath] = this;
 	}
 }
 
@@ -159,6 +146,8 @@ void PolkitAgent::setPath(const QString& path) {
 		qCWarning(logPolkit) << "cannot change path after it has been set.";
 	}
 }
+
+bool PolkitAgent::isRegistered() const { return mIsRegistered; }
 
 bool PolkitAgent::isActive() const { return !queuedRequests.empty(); }
 
@@ -274,6 +263,28 @@ void PolkitAgent::showInfo(const QString& message) {
 
 	mSubMessage = new SubMessage(message, false, currentSession);
 	emit subMessageChanged();
+}
+
+void PolkitAgent::onPostReload() {
+	if (mIsRegistered || isRegistering) return;
+
+	if (currentAgent != nullptr) {
+		auto prevGen = EngineGeneration::findObjectGeneration(currentAgent);
+		auto myGen = EngineGeneration::findObjectGeneration(this);
+		if (prevGen != myGen) {
+			qCDebug(logPolkit) << "taking over listener from previous generation";
+
+			if (listener) g_object_unref(listener);
+			listener = currentAgent->listener;
+			currentAgent->listener = nullptr;
+			qs_polkit_agent_set_parent(listener, this);
+			currentAgent = this;
+			mIsRegistered = true;
+			return;
+		}
+	}
+
+	qCWarning(logPolkit) << "no listener to take over from previous generation.";
 }
 
 void PolkitAgent::activateAuthenticationRequest() {

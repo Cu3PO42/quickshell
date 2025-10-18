@@ -52,9 +52,9 @@ static void qs_polkit_agent_class_init(QsPolkitAgentClass *klass) {
 	listener_class->initiate_authentication_finish = initiate_authentication_finish;
 }
 
-QsPolkitAgent* qs_polkit_agent_new(qs::service::polkit::PolkitAgent* agent) {
+QsPolkitAgent* qs_polkit_agent_new(qs::service::polkit::PolkitAgent* parent) {
 	QsPolkitAgent* self = QS_POLKIT_AGENT(g_object_new(QS_TYPE_POLKIT_AGENT, nullptr));
-	self->agent = agent;
+	self->agent = parent;
 	return self;
 }
 
@@ -197,4 +197,8 @@ namespace qs::service::polkit {
 	void AuthRequest::deleteLater() {
 		QTimer::singleShot(0, [this]() { delete this; });
 	}
+}
+
+void qs_polkit_agent_set_parent(QsPolkitAgent* agent, qs::service::polkit::PolkitAgent* parent) {
+	agent->agent = parent;
 }
