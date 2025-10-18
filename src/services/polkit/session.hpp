@@ -6,6 +6,7 @@ typedef struct _PolkitIdentity PolkitIdentity;
 typedef struct _PolkitAgentSession PolkitAgentSession;
 
 namespace qs::service::polkit {
+//! Represents an authentication session for a specific identity.
 class Session: public QObject {
 	Q_OBJECT;
 	Q_DISABLE_COPY(Session);
@@ -20,9 +21,6 @@ public:
 	void cancel();
 	/// Provide a response to an input request.
 	void respond(const QString& response);
-
-	/// Destroy the internal session object, if any.
-	void destroy();
 
 Q_SIGNALS:
 	/// Emitted when the session wants to request input from the user.

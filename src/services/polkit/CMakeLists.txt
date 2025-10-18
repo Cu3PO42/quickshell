@@ -5,6 +5,9 @@ pkg_check_modules(polkit_agent REQUIRED IMPORTED_TARGET polkit-agent-1)
 pkg_check_modules(polkit REQUIRED IMPORTED_TARGET polkit-gobject-1)
 
 qt_add_library(quickshell-service-polkit STATIC
+	agentimpl.cpp
+	flow.cpp
+	identity.cpp
 	listener.cpp
 	session.cpp
 	qml.cpp

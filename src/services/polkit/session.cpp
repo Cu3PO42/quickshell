@@ -11,8 +11,6 @@ namespace qs::service::polkit {
 static void completed_cb(PolkitAgentSession*, gboolean gainedAuthorization, gpointer userData) {
 	auto self = static_cast<Session*>(userData);
 	emit self->completed(gainedAuthorization);
-
-	self->destroy();
 }
 
 static void request_cb(PolkitAgentSession*, const char* message, gboolean echo, gpointer userData) {
@@ -31,7 +29,7 @@ static void show_info_cb(PolkitAgentSession*, const char* message, gpointer user
 }
 
 Session::Session(PolkitIdentity* identity, const QString& cookie, QObject* parent)
-	: QObject(parent) {
+    : QObject(parent) {
 	session = polkit_agent_session_new(identity, cookie.toUtf8().constData());
 
 	g_signal_connect(G_OBJECT(session), "completed", G_CALLBACK(completed_cb), this);
@@ -41,29 +39,18 @@ Session::Session(PolkitIdentity* identity, const QString& cookie, QObject* paren
 }
 
 Session::~Session() {
-	destroy();
-}
-
-void Session::initiate() {
-	polkit_agent_session_initiate(session);
-}
-
-void Session::cancel() {
-	polkit_agent_session_cancel(session);
-}
-
-void Session::respond(const QString& response) {
-	polkit_agent_session_response(session, response.toUtf8().constData());
-}
-
-void Session::destroy() {
 	// Signals do not need to be disconnected explicitly. This happens during
 	// destruction of the gobject. Since we own the session object, we can be
 	// sure it is being destroyed after the unref.
-	if (session) {
-		g_object_unref(session);
-		session = nullptr;
-	}
+	g_object_unref(session);
+}
+
+void Session::initiate() { polkit_agent_session_initiate(session); }
+
+void Session::cancel() { polkit_agent_session_cancel(session); }
+
+void Session::respond(const QString& response) {
+	polkit_agent_session_response(session, response.toUtf8().constData());
 }
 
 } // namespace qs::service::polkit

@@ -1,6 +1,6 @@
 name = "Quickshell.Services.Polkit"
 description = "Polkit API"
-headers = [qml.hpp, listener.hpp]
+headers = [agentimpl.hpp, flow.hpp, identity.hpp, listener.hpp, qml.hpp, session.hpp]
 -----
 
 ## Purpose of a Polkit Agent
@@ -14,7 +14,7 @@ This service enables writing a PolKit agent in Quickshell.
 ## Implementing a Polkit Agent
 
 The backend logic of communicating with the daemon is handled by the @@PolkitAgent object.
-It exposes incoming requests as properties and provides appropriate signals.
+It exposes incoming requests via @@PolkitAgent.flow and provides appropriate signals.
 
 ### Flow of an authentication request
 
@@ -26,16 +26,16 @@ A request starts by emitting the @@PolkitAgent.authenticationRequestStarted sign
 At this point, information like the action to be performed and permitted users that can authenticate is available.
 
 An authentication *session* for the request is immediately started, which internally starts a PAM conversation that is likely to prompt for user input.
-* Additional prompts may be shared with the user by way of the @@PolkitAgent.subMessageChanged signal and the @@PolkitAgent.subMessage property. A common message might be 'Please input your password'.
-* An input request is forwarded via the @@PolkitAgent.inputRequestChanged signal and @@PolkitAgent.inputRequest property. Note that the request specifies whether the text box should show the typed input on screen or replace it with placeholders.
+* Additional prompts may be shared with the user by way of the @@AuthFlow.supplementaryChanged signal and the @@AuthFlow.supplementaryMessage and @@AuthFlow.supplementaryIsError properties. A common message might be 'Please input your password'.
+* An input request is forwarded via the @@PolkitAgent.responseRequestChanged signal and @@PolkitAgent.inputPrompt and related properties. Note that the request specifies whether the text box should show the typed input on screen or replace it with placeholders.
 
-User replies can be submitted via the @@PolkitAgent.submit method.
+User replies can be submitted via the @@AuthFlow.submit method.
 A conversation can take multiple turns, for example if second factors are involved.
 
 If authentication fails, we automatically create a fresh session so the user can try again.
-The @@PolkitAgent.authenticationFailed signal is emitted in this case.
+The @@AuthFlow.authenticationFailed signal is emitted in this case.
 
-If authentication is successful, you receive the @@PolkitAgent.authenticationSucceeeded signal. At this point, the dialog can be closed.
+If authentication is successful, you receive the @@AuthFlow.authenticationSucceeeded signal. At this point, the dialog can be closed.
 If additional requests are queued, you will receive the @@PolkitAgent.authenticationRequestStarted signal again.
 
 #### Cancelled requests
@@ -43,8 +43,4 @@ If additional requests are queued, you will receive the @@PolkitAgent.authentica
 Requests may either be canceled by the user or the PolKit daemon.
 In this case, we clean up any state and proceed to the next request, if any.
 
-If the request was cancelled by the daemon and not the user, you also receive the @@PolkitAgent.authenticationRequestCancelled signal.
-
-## Limitations
-
-- If multiple authentication requests are queued, we cannot determine which one is canceled (if one is canceled)
+If the request was cancelled by the daemon and not the user, you also receive the @@AuthFlow.authenticationRequestCancelled signal.

@@ -18,21 +18,26 @@ Scope {
             spacing: 12
 
             Label {
-                text: polkitAgent.message
+                text: polkitAgent.flow?.message ?? ""
                 wrapMode: Text.Wrap
                 font.bold: true
             }
 
             Label {
-                visible: !!polkitAgent.subMessage
-                text: polkitAgent.subMessage ? polkitAgent.subMessage.text : ""
+                visible: polkitAgent.flow?.supplementaryMessage.length > 0
+                text: polkitAgent.flow?.supplementaryMessage ?? ""
                 wrapMode: Text.Wrap
                 opacity: 0.8
             }
 
+            Label {
+                text: polkitAgent.flow?.inputPrompt ?? ""
+                wrapMode: Text.Wrap
+            }
+
             TextInput {
                 id: passwordInput
-                echoMode: polkitAgent.inputRequest && polkitAgent.inputRequest.echo
+                echoMode: polkitAgent.flow?.responseVisible
                           ? TextInput.Normal : TextInput.Password
                 selectByMouse: true
                 width: parent.width
@@ -44,9 +49,9 @@ Scope {
                 Button {
                     id: okButton
                     text: "OK"
-                    enabled: passwordInput.text.length > 0 || (polkitAgent.inputRequest && polkitAgent.inputRequest.echo)
+                    enabled: passwordInput.text.length > 0 || !!polkitAgent.flow?.isResponseRequired
                     onClicked: {
-                        polkitAgent.submit(passwordInput.text)
+                        polkitAgent.flow.submit(passwordInput.text)
                         passwordInput.text = ""
                         passwordInput.forceActiveFocus()
                     }
@@ -55,17 +60,25 @@ Scope {
                     text: "Cancel"
                     visible: polkitAgent.isActive
                     onClicked: {
-                        polkitAgent.cancelAuthenticationRequest()
+                        polkitAgent.flow.cancelAuthenticationRequest()
                         passwordInput.text = ""
                     }
                 }
             }
         }
+
+		Connections {
+			target: polkitAgent.flow
+			function onResponseRequestChanged() {
+				passwordInput.text = ""
+                if (polkitAgent.flow.isResponseRequired)
+                    passwordInput.forceActiveFocus()
+			}
+		}
     }
 
 	PolkitAgent {
 		id: polkitAgent
 		path: "/org/quickshell/PolkitAgent"
-		onInputRequestChanged: passwordInput.forceActiveFocus()
 	}
 }
