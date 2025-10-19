@@ -11,27 +11,29 @@ QS_LOGGING_CATEGORY(logPolkit, "quickshell.service.polkit");
 namespace qs::service::polkit {
 PolkitAgentImpl* PolkitAgentImpl::instance = nullptr;
 
-PolkitAgentImpl::PolkitAgentImpl(PolkitAgent* agent): QObject(nullptr), qmlAgent(agent) {
-	auto path = qmlAgent->path().toUtf8();
-	listener = qs_polkit_agent_new(this);
-	qs_polkit_agent_register(listener, path.constData());
+PolkitAgentImpl::PolkitAgentImpl(PolkitAgent* agent)
+    : QObject(nullptr)
+    , listener(qs_polkit_agent_new(this))
+    , qmlAgent(agent) {
+	auto path = this->qmlAgent->path().toUtf8();
+	qs_polkit_agent_register(this->listener, path.constData());
 }
 
 PolkitAgentImpl::~PolkitAgentImpl() {
-	for (; !queuedRequests.empty(); queuedRequests.pop_back()) {
-		AuthRequest* req = queuedRequests.back();
+	for (; !this->queuedRequests.empty(); this->queuedRequests.pop_back()) {
+		AuthRequest* req = this->queuedRequests.back();
 		qCDebug(logPolkit) << "destroying queued authentication request for action" << req->actionId;
 		req->cancel("PolkitAgent is being destroyed");
 		delete req;
 	}
 
-	if (activeFlow) {
-		activeFlow->cancelAuthenticationRequest();
-		activeFlow->deleteLater();
+	if (this->activeFlow) {
+		this->activeFlow->cancelAuthenticationRequest();
+		this->activeFlow->deleteLater();
 	}
 
-	if (isRegistered) qs_polkit_agent_unregister(listener);
-	g_object_unref(listener);
+	if (this->isRegistered) qs_polkit_agent_unregister(this->listener);
+	g_object_unref(this->listener);
 }
 
 PolkitAgentImpl* PolkitAgentImpl::tryGetOrCreate(PolkitAgent* agent) {
@@ -47,10 +49,10 @@ PolkitAgentImpl* PolkitAgentImpl::tryGet(const PolkitAgent* agent) {
 }
 
 PolkitAgentImpl* PolkitAgentImpl::tryTakeover(PolkitAgent* agent) {
-	if (auto impl = tryGet(agent); impl != nullptr) return impl;
+	if (auto* impl = tryGet(agent); impl != nullptr) return impl;
 
-	auto prevGen = EngineGeneration::findObjectGeneration(instance->qmlAgent);
-	auto myGen = EngineGeneration::findObjectGeneration(agent);
+	auto* prevGen = EngineGeneration::findObjectGeneration(instance->qmlAgent);
+	auto* myGen = EngineGeneration::findObjectGeneration(agent);
 	if (prevGen == myGen) return nullptr;
 
 	qCDebug(logPolkit) << "taking over listener from previous generation";
@@ -74,51 +76,51 @@ void PolkitAgentImpl::onEndOfQmlAgent(PolkitAgent* agent) {
 
 void PolkitAgentImpl::registerComplete(bool success) {
 	if (success) {
-		isRegistered = true;
-		emit qmlAgent->isRegisteredChanged();
+		this->isRegistered = true;
+		emit this->qmlAgent->isRegisteredChanged();
 	} else {
-		qCWarning(logPolkit) << "failed to register listener on path" << qmlAgent->path();
+		qCWarning(logPolkit) << "failed to register listener on path" << this->qmlAgent->path();
 	}
 }
 
 void PolkitAgentImpl::initiateAuthentication(AuthRequest* request) {
 	qCDebug(logPolkit) << "incoming authentication request for action" << request->actionId;
 
-	queuedRequests.emplace_back(request);
+	this->queuedRequests.emplace_back(request);
 
-	if (queuedRequests.size() == 1) {
-		activateAuthenticationRequest();
+	if (this->queuedRequests.size() == 1) {
+		this->activateAuthenticationRequest();
 	}
 }
 
 void PolkitAgentImpl::cancelAuthentication(AuthRequest* request) {
 	qCDebug(logPolkit) << "cancelling authentication request from agent";
 
-	if (activeFlow && activeFlow->authRequest() == request) {
-		activeFlow->cancelFromAgent();
-	} else if (auto it = std::find(queuedRequests.begin(), queuedRequests.end(), request);
-	           it != queuedRequests.end())
+	if (this->activeFlow && this->activeFlow->authRequest() == request) {
+		this->activeFlow->cancelFromAgent();
+	} else if (auto it = std::ranges::find(this->queuedRequests, request);
+	           it != this->queuedRequests.end())
 	{
 		qCDebug(logPolkit) << "removing queued authentication request for action" << (*it)->actionId;
 		(*it)->cancel("Authentication request was cancelled");
 		delete (*it);
-		queuedRequests.erase(it);
+		this->queuedRequests.erase(it);
 	} else {
 		qCWarning(logPolkit) << "the cancelled request was not found in the queue.";
 	}
 }
 
 void PolkitAgentImpl::activateAuthenticationRequest() {
-	if (queuedRequests.empty()) return;
+	if (this->queuedRequests.empty()) return;
 
-	AuthRequest* req = queuedRequests.front();
-	queuedRequests.pop_front();
+	AuthRequest* req = this->queuedRequests.front();
+	this->queuedRequests.pop_front();
 	qCDebug(logPolkit) << "activating authentication request for action" << req->actionId
 	                   << ", cookie: " << req->cookie;
 
 	QList<Identity*> identities;
-	for (auto identity: req->identities) {
-		auto obj = Identity::fromPolkitIdentity(identity);
+	for (auto* identity: req->identities) {
+		auto* obj = Identity::fromPolkitIdentity(identity);
 		if (obj) identities.append(obj);
 	}
 	if (identities.isEmpty()) {
@@ -129,33 +131,34 @@ void PolkitAgentImpl::activateAuthenticationRequest() {
 		return;
 	}
 
-	activeFlow = new AuthFlow(req, std::move(identities));
+	this->activeFlow = new AuthFlow(req, std::move(identities));
 
 	QObject::connect(
-	    activeFlow,
+	    this->activeFlow,
 	    &AuthFlow::completedChanged,
 	    this,
 	    &PolkitAgentImpl::finishAuthenticationRequest
 	);
 
-	emit qmlAgent->isActiveChanged();
-	emit qmlAgent->flowChanged();
-	emit qmlAgent->authenticationRequestStarted();
+	emit this->qmlAgent->isActiveChanged();
+	emit this->qmlAgent->flowChanged();
+	emit this->qmlAgent->authenticationRequestStarted();
 }
 
 void PolkitAgentImpl::finishAuthenticationRequest() {
-	if (!activeFlow) return;
+	if (!this->activeFlow) return;
 
-	qCDebug(logPolkit) << "finishing authentication request for action" << activeFlow->actionId();
+	qCDebug(logPolkit) << "finishing authentication request for action"
+	                   << this->activeFlow->actionId();
 
-	activeFlow->deleteLater();
-	activeFlow = nullptr;
-	emit qmlAgent->flowChanged();
+	this->activeFlow->deleteLater();
+	this->activeFlow = nullptr;
+	emit this->qmlAgent->flowChanged();
 
-	if (!queuedRequests.empty()) {
-		activateAuthenticationRequest();
+	if (!this->queuedRequests.empty()) {
+		this->activateAuthenticationRequest();
 	} else {
-		emit qmlAgent->isActiveChanged();
+		emit this->qmlAgent->isActiveChanged();
 	}
 }
 } // namespace qs::service::polkit

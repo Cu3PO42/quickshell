@@ -12,8 +12,8 @@
 #include "../../core/reload.hpp"
 #include "../../core/retainable.hpp"
 
-typedef struct _PolkitIdentity PolkitIdentity;
-typedef struct _QsPolkitAgent QsPolkitAgent;
+using PolkitIdentity = struct _PolkitIdentity;
+using QsPolkitAgent = struct _QsPolkitAgent;
 
 namespace qs::service::polkit {
 

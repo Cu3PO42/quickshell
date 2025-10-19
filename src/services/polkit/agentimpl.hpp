@@ -27,7 +27,7 @@ public:
 
 private:
 	PolkitAgentImpl(PolkitAgent* agent);
-	~PolkitAgentImpl();
+	~PolkitAgentImpl() override;
 
 	static PolkitAgentImpl* instance;
 

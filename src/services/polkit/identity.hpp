@@ -3,7 +3,7 @@
 #include <qobject.h>
 #include <qqmlintegration.h>
 
-typedef struct _PolkitIdentity PolkitIdentity;
+using PolkitIdentity = struct _PolkitIdentity;
 
 namespace qs::service::polkit {
 //! Represents a user or group that can be used to authenticate.

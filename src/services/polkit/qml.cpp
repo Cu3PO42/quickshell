@@ -20,39 +20,39 @@ void PolkitAgent::classBegin() {
 }
 
 void PolkitAgent::componentComplete() {
-	PostReloadHook::componentComplete();
+	this->PostReloadHook::componentComplete();
 
-	if (mPath.isEmpty()) mPath = "/org/quickshell/Polkit";
+	if (this->mPath.isEmpty()) this->mPath = "/org/quickshell/Polkit";
 
 	PolkitAgentImpl::tryGetOrCreate(this);
 }
 
-QString PolkitAgent::path() const { return mPath; }
+QString PolkitAgent::path() const { return this->mPath; }
 
 void PolkitAgent::setPath(const QString& path) {
-	if (mPath.isEmpty()) {
-		mPath = path;
-	} else if (mPath != path) {
+	if (this->mPath.isEmpty()) {
+		this->mPath = path;
+	} else if (this->mPath != path) {
 		qCWarning(logPolkit) << "cannot change path after it has been set.";
 	}
 }
 
 bool PolkitAgent::isRegistered() const {
-	if (auto impl = PolkitAgentImpl::tryGet(this); impl != nullptr) {
+	if (auto* impl = PolkitAgentImpl::tryGet(this); impl != nullptr) {
 		return impl->isRegistered;
 	}
 	return false;
 }
 
 bool PolkitAgent::isActive() const {
-	if (auto impl = PolkitAgentImpl::tryGet(this); impl != nullptr) {
+	if (auto* impl = PolkitAgentImpl::tryGet(this); impl != nullptr) {
 		return impl->activeFlow != nullptr;
 	}
 	return false;
 }
 
 AuthFlow* PolkitAgent::flow() const {
-	if (auto impl = PolkitAgentImpl::tryGet(this); impl != nullptr) {
+	if (auto* impl = PolkitAgentImpl::tryGet(this); impl != nullptr) {
 		return impl->activeFlow;
 	}
 	return nullptr;
@@ -61,9 +61,9 @@ AuthFlow* PolkitAgent::flow() const {
 void PolkitAgent::onPostReload() {
 	if (!PolkitAgentImpl::tryTakeover(this)) return;
 
-	emit isRegisteredChanged();
-	emit isActiveChanged();
-	emit flowChanged();
+	emit this->isRegisteredChanged();
+	emit this->isActiveChanged();
+	emit this->flowChanged();
 }
 
 } // namespace qs::service::polkit

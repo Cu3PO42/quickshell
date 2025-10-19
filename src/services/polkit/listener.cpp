@@ -10,12 +10,12 @@ namespace {
 QS_LOGGING_CATEGORY(logPolkitListener, "quickshell.service.polkit.listener", QtWarningMsg);
 }
 
-typedef struct _QsPolkitAgent {
+using QsPolkitAgent = struct _QsPolkitAgent {
 	PolkitAgentListener parent_instance;
 
 	qs::service::polkit::ListenerCb* cb;
 	gpointer registration_handle;
-} QsPolkitAgent;
+};
 
 G_DEFINE_TYPE(QsPolkitAgent, qs_polkit_agent, POLKIT_AGENT_TYPE_LISTENER)
 
@@ -60,12 +60,12 @@ QsPolkitAgent* qs_polkit_agent_new(qs::service::polkit::ListenerCb* cb) {
 	return self;
 }
 
-struct register_cb_data {
+struct RegisterCbData {
 	QsPolkitAgent* agent;
 	const char* path;
 };
 
-static void qs_polkit_agent_register_cb(GObject*, GAsyncResult* res, gpointer userData);
+static void qs_polkit_agent_register_cb(GObject* /*unused*/, GAsyncResult* res, gpointer userData);
 void qs_polkit_agent_register(QsPolkitAgent* agent, const char* path) {
 	if (path == nullptr || path[0] == '\0') {
 		qCWarning(logPolkitListener) << "cannot register listener without a path set.";
@@ -73,18 +73,18 @@ void qs_polkit_agent_register(QsPolkitAgent* agent, const char* path) {
 		return;
 	}
 
-	auto data = new register_cb_data {.agent = agent, .path = strdup(path)};
+	auto* data = new RegisterCbData {.agent = agent, .path = strdup(path)};
 	polkit_unix_session_new_for_process(getpid(), nullptr, &qs_polkit_agent_register_cb, data);
 }
 
-static void qs_polkit_agent_register_cb(GObject*, GAsyncResult* res, gpointer userData) {
-	auto data = static_cast<register_cb_data*>(userData);
-	auto agent = data->agent;
-	auto path = data->path;
+static void qs_polkit_agent_register_cb(GObject* /*unused*/, GAsyncResult* res, gpointer userData) {
+	auto* data = static_cast<RegisterCbData*>(userData);
+	auto* agent = data->agent;
+	const auto* path = data->path;
 	delete data;
 
 	GError* error = nullptr;
-	auto subject = polkit_unix_session_new_for_process_finish(res, &error);
+	auto* subject = polkit_unix_session_new_for_process_finish(res, &error);
 
 	if (subject == nullptr || error != nullptr) {
 		qCWarning(logPolkitListener) << "failed to create subject for listener:"
@@ -123,8 +123,8 @@ void qs_polkit_agent_unregister(QsPolkitAgent* agent) {
 	}
 }
 
-static void authentication_cancelled_cb(GCancellable*, gpointer userData) {
-	auto request = static_cast<qs::service::polkit::AuthRequest*>(userData);
+static void authentication_cancelled_cb(GCancellable* /*unused*/, gpointer userData) {
+	auto* request = static_cast<qs::service::polkit::AuthRequest*>(userData);
 	request->cb->cancelAuthentication(request);
 }
 
@@ -133,22 +133,22 @@ static void initiate_authentication(
     const gchar* actionId,
     const gchar* message,
     const gchar* iconName,
-    PolkitDetails*,
+    PolkitDetails* /*unused*/,
     const gchar* cookie,
     GList* identities,
     GCancellable* cancellable,
     GAsyncReadyCallback callback,
     gpointer userData
 ) {
-	auto self = QS_POLKIT_AGENT(listener);
+	auto* self = QS_POLKIT_AGENT(listener);
 
-	auto asyncResult = g_task_new(reinterpret_cast<GObject*>(self), nullptr, callback, userData);
+	auto* asyncResult = g_task_new(reinterpret_cast<GObject*>(self), nullptr, callback, userData);
 
 	// Identities may be duplicated, so we use the hash to filter them out.
 	std::unordered_set<guint> identitySet;
 	std::vector<PolkitIdentity*> identityVector;
-	for (auto item = g_list_first(identities); item != nullptr; item = g_list_next(item)) {
-		auto identity = static_cast<PolkitIdentity*>(item->data);
+	for (auto* item = g_list_first(identities); item != nullptr; item = g_list_next(item)) {
+		auto* identity = static_cast<PolkitIdentity*>(item->data);
 		if (identitySet.contains(polkit_identity_hash(identity))) continue;
 
 		identitySet.insert(polkit_identity_hash(identity));
@@ -156,7 +156,7 @@ static void initiate_authentication(
 		g_object_ref(identity);
 	}
 
-	auto request = new qs::service::polkit::AuthRequest {
+	auto* request = new qs::service::polkit::AuthRequest {
 	    .actionId = QString::fromUtf8(actionId),
 	    .message = QString::fromUtf8(message),
 	    .iconName = QString::fromUtf8(iconName),
@@ -181,22 +181,31 @@ static void initiate_authentication(
 	self->cb->initiateAuthentication(request);
 }
 
-static gboolean
-initiate_authentication_finish(PolkitAgentListener*, GAsyncResult* result, GError** error) {
+static gboolean initiate_authentication_finish(
+    PolkitAgentListener* /*unused*/,
+    GAsyncResult* result,
+    GError** error
+) {
 	return g_task_propagate_boolean(G_TASK(result), error);
 }
 
 namespace qs::service::polkit {
 AuthRequest::~AuthRequest() {
-	for (auto identity: identities) {
+	for (auto* identity: this->identities) {
 		g_object_unref(identity);
 	}
 }
 
-void AuthRequest::complete() { g_task_return_boolean(task, true); }
+void AuthRequest::complete() { g_task_return_boolean(this->task, true); }
 
 void AuthRequest::cancel(const QString& reason) {
 	auto utf8Reason = reason.toUtf8();
-	g_task_return_new_error(task, POLKIT_ERROR, POLKIT_ERROR_CANCELLED, "%s", utf8Reason.constData());
+	g_task_return_new_error(
+	    this->task,
+	    POLKIT_ERROR,
+	    POLKIT_ERROR_CANCELLED,
+	    "%s",
+	    utf8Reason.constData()
+	);
 }
 } // namespace qs::service::polkit

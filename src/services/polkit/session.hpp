@@ -2,8 +2,8 @@
 
 #include <qobject.h>
 
-typedef struct _PolkitIdentity PolkitIdentity;
-typedef struct _PolkitAgentSession PolkitAgentSession;
+using PolkitIdentity = struct _PolkitIdentity;
+using PolkitAgentSession = struct _PolkitAgentSession;
 
 namespace qs::service::polkit {
 //! Represents an authentication session for a specific identity.

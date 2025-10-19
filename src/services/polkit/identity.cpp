@@ -30,7 +30,7 @@ Identity::~Identity() = default;
 Identity* Identity::fromPolkitIdentity(PolkitIdentity* identity) {
 	if (POLKIT_IS_UNIX_USER(identity)) {
 		auto uid = polkit_unix_user_get_uid(POLKIT_UNIX_USER(identity));
-		auto pw = getpwuid(uid);
+		auto* pw = getpwuid(uid);
 		auto name =
 		    (pw && pw->pw_name && *pw->pw_name) ? QString::fromUtf8(pw->pw_name) : QString::number(uid);
 		return new Identity(
@@ -44,7 +44,7 @@ Identity* Identity::fromPolkitIdentity(PolkitIdentity* identity) {
 
 	if (POLKIT_IS_UNIX_GROUP(identity)) {
 		auto gid = polkit_unix_group_get_gid(POLKIT_UNIX_GROUP(identity));
-		auto gr = getgrgid(gid);
+		auto* gr = getgrgid(gid);
 		auto name =
 		    (gr && gr->gr_name && *gr->gr_name) ? QString::fromUtf8(gr->gr_name) : QString::number(gid);
 		return new Identity(gid, name, name, true, identity);
@@ -54,9 +54,9 @@ Identity* Identity::fromPolkitIdentity(PolkitIdentity* identity) {
 	return nullptr;
 }
 
-id_t Identity::id() const { return mId; }
-const QString& Identity::name() const { return mName; }
-const QString& Identity::displayName() const { return mDisplayName; }
-bool Identity::isGroup() const { return mIsGroup; }
+id_t Identity::id() const { return this->mId; }
+const QString& Identity::name() const { return this->mName; }
+const QString& Identity::displayName() const { return this->mDisplayName; }
+bool Identity::isGroup() const { return this->mIsGroup; }
 
 } // namespace qs::service::polkit
