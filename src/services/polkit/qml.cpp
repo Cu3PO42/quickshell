@@ -1,16 +1,7 @@
 #include "qml.hpp"
 
-#include <qdir.h>
-#include <qfile.h>
-#include <qtimer.h>
-
 #include "agentimpl.hpp"
 #include "flow.hpp"
-#include "identity.hpp"
-#include "listener.hpp"
-#define POLKIT_AGENT_I_KNOW_API_IS_SUBJECT_TO_CHANGE
-#include <polkit/polkit.h>
-#include <polkitagent/polkitagent.h>
 
 #include "../../core/generation.hpp"
 #include "../../core/logcat.hpp"
