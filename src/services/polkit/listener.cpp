@@ -1,7 +1,19 @@
 #include "listener.hpp"
-
+#include <cstdlib>
+#include <string.h>
 #include <unordered_set>
+#include <utility>
 #include <vector>
+
+#include <gio/gio.h>
+#include <glib-object.h>
+#include <glib.h>
+#include <polkit/polkit.h>
+#include <polkit/polkittypes.h>
+#include <polkitagent/polkitagent.h>
+#include <qlogging.h>
+#include <qloggingcategory.h>
+#include <unistd.h>
 
 #include "../../core/logcat.hpp"
 #include "qml.hpp"

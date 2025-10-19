@@ -1,4 +1,10 @@
 #include "flow.hpp"
+#include <utility>
+
+#include <qlist.h>
+#include <qloggingcategory.h>
+#include <qobject.h>
+#include <qtmetamacros.h>
 
 #include "../../core/logcat.hpp"
 #include "identity.hpp"

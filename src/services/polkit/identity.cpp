@@ -1,10 +1,14 @@
 #include "identity.hpp"
+#include <utility>
+
+#include <qobject.h>
+#include <qtmetamacros.h>
+#include <sys/types.h>
 
 #define POLKIT_AGENT_I_KNOW_API_IS_SUBJECT_TO_CHANGE
 // Workaround macro collision with glib 'signals' struct member.
 #undef signals
 #include <polkit/polkit.h>
-#include <polkitagent/polkitagent.h>
 #define signals Q_SIGNALS
 #include <grp.h>
 #include <pwd.h>

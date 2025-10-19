@@ -1,5 +1,10 @@
 #include "session.hpp"
 
+#include <glib-object.h>
+#include <glib.h>
+#include <qobject.h>
+#include <qtmetamacros.h>
+
 #define POLKIT_AGENT_I_KNOW_API_IS_SUBJECT_TO_CHANGE
 // This causes a problem with variables of the name.
 #undef signals

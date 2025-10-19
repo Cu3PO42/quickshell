@@ -1,7 +1,16 @@
 #include "agentimpl.hpp"
+#include <algorithm>
+#include <utility>
+
+#include <glib-object.h>
+#include <qlist.h>
+#include <qloggingcategory.h>
+#include <qobject.h>
+#include <qtmetamacros.h>
 
 #include "../../core/generation.hpp"
 #include "../../core/logcat.hpp"
+#include "listener.hpp"
 #include "qml.hpp"
 
 namespace {

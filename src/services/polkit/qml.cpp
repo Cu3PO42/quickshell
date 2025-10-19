@@ -1,10 +1,13 @@
 #include "qml.hpp"
 
+#include <qloggingcategory.h>
+#include <qobject.h>
+#include <qtmetamacros.h>
+
+#include "../../core/logcat.hpp"
+#include "../../core/reload.hpp"
 #include "agentimpl.hpp"
 #include "flow.hpp"
-
-#include "../../core/generation.hpp"
-#include "../../core/logcat.hpp"
 
 namespace {
 QS_LOGGING_CATEGORY(logPolkit, "quickshell.service.polkit");
