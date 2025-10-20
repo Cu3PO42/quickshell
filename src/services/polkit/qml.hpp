@@ -12,7 +12,8 @@
 #include "../../core/reload.hpp"
 #include "../../core/retainable.hpp"
 
-using PolkitIdentity = struct _PolkitIdentity;
+// The reserved identifier is exactly the struct I mean.
+using PolkitIdentity = struct _PolkitIdentity; // NOLINT(bugprone-reserved-identifier)
 using QsPolkitAgent = struct _QsPolkitAgent;
 
 namespace qs::service::polkit {
@@ -24,9 +25,13 @@ class Identity;
 class AuthFlow;
 
 //! Contains interface to instantiate a PolKit agent listener.
-class PolkitAgent: public PostReloadHook {
+class PolkitAgent
+    : public QObject
+    , public QQmlParserStatus {
 	Q_OBJECT;
 	QML_ELEMENT;
+	Q_INTERFACES(QQmlParserStatus);
+	Q_DISABLE_COPY_MOVE(PolkitAgent);
 
 	// clang-format off
     /// The D-Bus path that this agent listener will use.
@@ -50,9 +55,9 @@ class PolkitAgent: public PostReloadHook {
 
 public:
 	explicit PolkitAgent(QObject* parent = nullptr);
-	~PolkitAgent() override;
+	~PolkitAgent() override = default;
 
-	void classBegin() override;
+	void classBegin() override {};
 	void componentComplete() override;
 
 	[[nodiscard]] QString path() const;
@@ -72,9 +77,6 @@ signals:
 	void isRegisteredChanged();
 	void isActiveChanged();
 	void flowChanged();
-
-protected:
-	void onPostReload() override;
 
 private:
 	QString mPath = "";

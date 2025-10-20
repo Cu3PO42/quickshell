@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <utility>
 
-#include <glib-object.h>
 #include <qlist.h>
 #include <qloggingcategory.h>
 #include <qobject.h>
@@ -10,6 +9,7 @@
 
 #include "../../core/generation.hpp"
 #include "../../core/logcat.hpp"
+#include "gobjectref.hpp"
 #include "listener.hpp"
 #include "qml.hpp"
 
@@ -22,10 +22,10 @@ PolkitAgentImpl* PolkitAgentImpl::instance = nullptr;
 
 PolkitAgentImpl::PolkitAgentImpl(PolkitAgent* agent)
     : QObject(nullptr)
-    , listener(qs_polkit_agent_new(this))
+    , listener(qs_polkit_agent_new(this), G_OBJECT_NO_REF)
     , qmlAgent(agent) {
 	auto path = this->qmlAgent->path().toUtf8();
-	qs_polkit_agent_register(this->listener, path.constData());
+	qs_polkit_agent_register(this->listener.get(), path.constData());
 }
 
 PolkitAgentImpl::~PolkitAgentImpl() {
@@ -41,8 +41,7 @@ PolkitAgentImpl::~PolkitAgentImpl() {
 		this->activeFlow->deleteLater();
 	}
 
-	if (this->isRegistered) qs_polkit_agent_unregister(this->listener);
-	g_object_unref(this->listener);
+	if (this->isRegistered) qs_polkit_agent_unregister(this->listener.get());
 }
 
 PolkitAgentImpl* PolkitAgentImpl::tryGetOrCreate(PolkitAgent* agent) {
@@ -58,7 +57,7 @@ PolkitAgentImpl* PolkitAgentImpl::tryGet(const PolkitAgent* agent) {
 }
 
 PolkitAgentImpl* PolkitAgentImpl::tryTakeover(PolkitAgent* agent) {
-	if (auto* impl = tryGet(agent); impl != nullptr) return impl;
+	if (auto* impl = tryGetOrCreate(agent); impl != nullptr) return impl;
 
 	auto* prevGen = EngineGeneration::findObjectGeneration(instance->qmlAgent);
 	auto* myGen = EngineGeneration::findObjectGeneration(agent);
@@ -128,7 +127,7 @@ void PolkitAgentImpl::activateAuthenticationRequest() {
 	                   << ", cookie: " << req->cookie;
 
 	QList<Identity*> identities;
-	for (auto* identity: req->identities) {
+	for (auto& identity: req->identities) {
 		auto* obj = Identity::fromPolkitIdentity(identity);
 		if (obj) identities.append(obj);
 	}

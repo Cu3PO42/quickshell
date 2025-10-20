@@ -4,6 +4,7 @@
 #include <qlist.h>
 #include <qloggingcategory.h>
 #include <qobject.h>
+#include <qqmlinfo.h>
 #include <qtmetamacros.h>
 
 #include "../../core/logcat.hpp"
@@ -20,9 +21,15 @@ AuthFlow::AuthFlow(AuthRequest* request, QList<Identity*>&& identities, QObject*
     : QObject(parent)
     , mRequest(request)
     , mIdentities(std::move(identities))
-    , mSelectedIdentity(mIdentities.isEmpty() ? nullptr : mIdentities.first()) {
+    , mSelectedIdentity(this->mIdentities.isEmpty() ? nullptr : this->mIdentities.first()) {
+	// We reject auth requests with no identities before a flow is created.
+	// This should never happen.
 	if (!this->mSelectedIdentity)
-		qCCritical(logPolkitState) << "AuthFlow created with no valid identities!";
+		qCFatal(logPolkitState) << "AuthFlow created with no valid identities!";
+
+	for (auto* identity: this->mIdentities) {
+		identity->setParent(this);
+	}
 
 	this->setupSession();
 }
@@ -39,7 +46,10 @@ Identity* AuthFlow::selectedIdentity() const { return this->mSelectedIdentity; }
 
 void AuthFlow::setSelectedIdentity(Identity* identity) {
 	if (this->mSelectedIdentity == identity) return;
-	if (!identity) return; // ignore null changes
+	if (!identity) {
+		qmlWarning(this) << "Cannot set selected identity to null.";
+		return;
+	}
 	for (auto* id: this->mIdentities) {
 		if (id == identity) {
 			this->mSelectedIdentity = id;
@@ -101,7 +111,7 @@ void AuthFlow::setupSession() {
 	qCDebug(logPolkitState) << "setting up session for identity" << this->mSelectedIdentity->name();
 
 	this->currentSession =
-	    new Session(this->mSelectedIdentity->polkitIdentity, this->mRequest->cookie, this);
+	    new Session(this->mSelectedIdentity->polkitIdentity.get(), this->mRequest->cookie, this);
 	QObject::connect(this->currentSession, &Session::request, this, &AuthFlow::request);
 	QObject::connect(this->currentSession, &Session::completed, this, &AuthFlow::completed);
 	QObject::connect(this->currentSession, &Session::showError, this, &AuthFlow::showError);

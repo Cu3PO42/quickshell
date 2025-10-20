@@ -5,6 +5,7 @@
 #include <qobject.h>
 
 #include "flow.hpp"
+#include "gobjectref.hpp"
 #include "listener.hpp"
 
 namespace qs::service::polkit {
@@ -14,8 +15,11 @@ class PolkitAgentImpl
     : public QObject
     , public ListenerCb {
 	Q_OBJECT;
+	Q_DISABLE_COPY_MOVE(PolkitAgentImpl);
 
 public:
+	~PolkitAgentImpl() override;
+
 	static PolkitAgentImpl* tryGetOrCreate(PolkitAgent* agent);
 	static PolkitAgentImpl* tryGet(const PolkitAgent* agent);
 	static PolkitAgentImpl* tryTakeover(PolkitAgent* agent);
@@ -27,7 +31,6 @@ public:
 
 private:
 	PolkitAgentImpl(PolkitAgent* agent);
-	~PolkitAgentImpl() override;
 
 	static PolkitAgentImpl* instance;
 
@@ -36,7 +39,7 @@ private:
 	/// Finalize and remove the current authentication request.
 	void finishAuthenticationRequest();
 
-	QsPolkitAgent* listener = nullptr;
+	GObjectRef<QsPolkitAgent> listener;
 	bool isRegistered = false;
 
 	PolkitAgent* qmlAgent = nullptr;

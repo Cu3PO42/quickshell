@@ -1,6 +1,8 @@
 #include "listener.hpp"
 #include <cstdlib>
-#include <string.h>
+#include <cstring>
+#include <memory>
+#include <string>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -16,11 +18,19 @@
 #include <unistd.h>
 
 #include "../../core/logcat.hpp"
+#include "gobjectref.hpp"
 #include "qml.hpp"
 
 namespace {
 QS_LOGGING_CATEGORY(logPolkitListener, "quickshell.service.polkit.listener", QtWarningMsg);
 }
+
+using qs::service::polkit::GObjectRef;
+
+// This is mostly GObject code, we follow their naming conventions for improved
+// clarity and to mark it as such. Additionally, many methods need to be static
+// to conform with the expected declarations.
+// NOLINTBEGIN(readability-identifier-naming,misc-use-anonymous-namespace)
 
 using QsPolkitAgent = struct _QsPolkitAgent {
 	PolkitAgentListener parent_instance;
@@ -73,27 +83,24 @@ QsPolkitAgent* qs_polkit_agent_new(qs::service::polkit::ListenerCb* cb) {
 }
 
 struct RegisterCbData {
-	QsPolkitAgent* agent;
-	const char* path;
+	GObjectRef<QsPolkitAgent> agent;
+	std::string path;
 };
 
 static void qs_polkit_agent_register_cb(GObject* /*unused*/, GAsyncResult* res, gpointer userData);
 void qs_polkit_agent_register(QsPolkitAgent* agent, const char* path) {
-	if (path == nullptr || path[0] == '\0') {
+	if (path == nullptr || *path == '\0') {
 		qCWarning(logPolkitListener) << "cannot register listener without a path set.";
 		agent->cb->registerComplete(false);
 		return;
 	}
 
-	auto* data = new RegisterCbData {.agent = agent, .path = strdup(path)};
+	auto* data = new RegisterCbData {.agent = GObjectRef(agent), .path = path};
 	polkit_unix_session_new_for_process(getpid(), nullptr, &qs_polkit_agent_register_cb, data);
 }
 
 static void qs_polkit_agent_register_cb(GObject* /*unused*/, GAsyncResult* res, gpointer userData) {
-	auto* data = static_cast<RegisterCbData*>(userData);
-	auto* agent = data->agent;
-	const auto* path = data->path;
-	delete data;
+	std::unique_ptr<RegisterCbData> data(reinterpret_cast<RegisterCbData*>(userData));
 
 	GError* error = nullptr;
 	auto* subject = polkit_unix_session_new_for_process_finish(res, &error);
@@ -102,30 +109,29 @@ static void qs_polkit_agent_register_cb(GObject* /*unused*/, GAsyncResult* res, 
 		qCWarning(logPolkitListener) << "failed to create subject for listener:"
 		                             << (error ? error->message : "<unknown error>");
 		g_clear_error(&error);
-		agent->cb->registerComplete(false);
+		data->agent->cb->registerComplete(false);
 		return;
 	}
 
-	agent->registration_handle = polkit_agent_listener_register(
-	    POLKIT_AGENT_LISTENER(agent),
+	data->agent->registration_handle = polkit_agent_listener_register(
+	    POLKIT_AGENT_LISTENER(data->agent.get()),
 	    POLKIT_AGENT_REGISTER_FLAGS_NONE,
 	    subject,
-	    path,
+	    data->path.c_str(),
 	    nullptr,
 	    &error
 	);
 
-	free((void*) path);
 	g_object_unref(subject);
 
 	if (error != nullptr) {
 		qCWarning(logPolkitListener) << "failed to register listener:" << error->message;
 		g_clear_error(&error);
-		agent->cb->registerComplete(false);
+		data->agent->cb->registerComplete(false);
 		return;
 	}
 
-	agent->cb->registerComplete(true);
+	data->agent->cb->registerComplete(true);
 }
 
 void qs_polkit_agent_unregister(QsPolkitAgent* agent) {
@@ -158,16 +164,20 @@ static void initiate_authentication(
 
 	// Identities may be duplicated, so we use the hash to filter them out.
 	std::unordered_set<guint> identitySet;
-	std::vector<PolkitIdentity*> identityVector;
+	std::vector<GObjectRef<PolkitIdentity>> identityVector;
 	for (auto* item = g_list_first(identities); item != nullptr; item = g_list_next(item)) {
 		auto* identity = static_cast<PolkitIdentity*>(item->data);
 		if (identitySet.contains(polkit_identity_hash(identity))) continue;
 
 		identitySet.insert(polkit_identity_hash(identity));
-		identityVector.push_back(identity);
-		g_object_ref(identity);
+		// The caller unrefs all identities after we return, therefore we need to
+		// take our own reference for the identities we keep. Our wrapper does
+		// this automatically.
+		identityVector.emplace_back(identity);
 	}
 
+	// The original strings are freed by the caller after we return, so we
+	// copy them into QStrings.
 	auto* request = new qs::service::polkit::AuthRequest {
 	    .actionId = QString::fromUtf8(actionId),
 	    .message = QString::fromUtf8(message),
@@ -184,7 +194,7 @@ static void initiate_authentication(
 	if (cancellable != nullptr) {
 		request->handlerId = g_cancellable_connect(
 		    cancellable,
-		    GCallback(authentication_cancelled_cb),
+		    reinterpret_cast<GCallback>(authentication_cancelled_cb),
 		    request,
 		    nullptr
 		);
@@ -202,12 +212,10 @@ static gboolean initiate_authentication_finish(
 }
 
 namespace qs::service::polkit {
-AuthRequest::~AuthRequest() {
-	for (auto* identity: this->identities) {
-		g_object_unref(identity);
-	}
-}
-
+// While these functions can be const since they do not modify member variables,
+// they are logically non-const since they modify the state of the
+// authentication request. Therefore, we do not mark them as const.
+// NOLINTBEGIN(readability-make-member-function-const)
 void AuthRequest::complete() { g_task_return_boolean(this->task, true); }
 
 void AuthRequest::cancel(const QString& reason) {
@@ -220,4 +228,7 @@ void AuthRequest::cancel(const QString& reason) {
 	    utf8Reason.constData()
 	);
 }
+// NOLINTEND(readability-make-member-function-const)
 } // namespace qs::service::polkit
+
+// NOLINTEND(readability-identifier-naming,misc-use-anonymous-namespace)

@@ -5,7 +5,6 @@
 #include <qtmetamacros.h>
 
 #include "../../core/logcat.hpp"
-#include "../../core/reload.hpp"
 #include "agentimpl.hpp"
 #include "flow.hpp"
 
@@ -14,20 +13,16 @@ QS_LOGGING_CATEGORY(logPolkit, "quickshell.service.polkit");
 }
 
 namespace qs::service::polkit {
-PolkitAgent::PolkitAgent(QObject* parent): PostReloadHook(parent) {}
-
-PolkitAgent::~PolkitAgent() = default;
-
-void PolkitAgent::classBegin() {
-	// Nothing to do here.
-}
+PolkitAgent::PolkitAgent(QObject* parent): QObject(parent) {}
 
 void PolkitAgent::componentComplete() {
-	this->PostReloadHook::componentComplete();
-
 	if (this->mPath.isEmpty()) this->mPath = "/org/quickshell/Polkit";
 
-	PolkitAgentImpl::tryGetOrCreate(this);
+	PolkitAgentImpl::tryTakeover(this);
+
+	emit this->isRegisteredChanged();
+	emit this->isActiveChanged();
+	emit this->flowChanged();
 }
 
 QString PolkitAgent::path() const { return this->mPath; }
@@ -60,13 +55,4 @@ AuthFlow* PolkitAgent::flow() const {
 	}
 	return nullptr;
 }
-
-void PolkitAgent::onPostReload() {
-	if (!PolkitAgentImpl::tryTakeover(this)) return;
-
-	emit this->isRegisteredChanged();
-	emit this->isActiveChanged();
-	emit this->flowChanged();
-}
-
 } // namespace qs::service::polkit

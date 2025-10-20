@@ -2,14 +2,19 @@
 
 #include <qobject.h>
 
+// _PolkitIdentity and _PolkitAgentSession are considered reserved identifiers,
+// but I am specifically forward declaring those reserved names.
+
+// NOLINTBEGIN(bugprone-reserved-identifier)
 using PolkitIdentity = struct _PolkitIdentity;
 using PolkitAgentSession = struct _PolkitAgentSession;
+// NOLINTEND(bugprone-reserved-identifier)
 
 namespace qs::service::polkit {
 //! Represents an authentication session for a specific identity.
 class Session: public QObject {
 	Q_OBJECT;
-	Q_DISABLE_COPY(Session);
+	Q_DISABLE_COPY_MOVE(Session);
 
 public:
 	explicit Session(PolkitIdentity* identity, const QString& cookie, QObject* parent = nullptr);

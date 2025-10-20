@@ -3,16 +3,21 @@
 #include <qobject.h>
 #include <qqmlintegration.h>
 
-using PolkitIdentity = struct _PolkitIdentity;
+#include "gobjectref.hpp"
+
+// _PolkitIdentity is considered a reserved identifier, but I am specifically
+// forward declaring this reserved name.
+using PolkitIdentity = struct _PolkitIdentity; // NOLINT(bugprone-reserved-identifier)
 
 namespace qs::service::polkit {
 //! Represents a user or group that can be used to authenticate.
 class Identity: public QObject {
 	Q_OBJECT;
+	Q_DISABLE_COPY_MOVE(Identity);
 
 	// clang-format off
 	/// The Id of the identity. If the identity is a user, this is the user's uid. See @@isGroup.
-	Q_PROPERTY(id_t id READ id CONSTANT);
+	Q_PROPERTY(quint32 id READ id CONSTANT);
 
 	/// The name of the user or group.
 	///
@@ -36,19 +41,19 @@ public:
 	    QString name,
 	    QString displayName,
 	    bool isGroup,
-	    PolkitIdentity* polkitIdentity,
+	    GObjectRef<PolkitIdentity> polkitIdentity,
 	    QObject* parent = nullptr
 	);
 	~Identity() override;
 
-	static Identity* fromPolkitIdentity(PolkitIdentity* identity);
+	static Identity* fromPolkitIdentity(GObjectRef<PolkitIdentity> identity);
 
-	[[nodiscard]] id_t id() const;
+	[[nodiscard]] quint32 id() const;
 	[[nodiscard]] const QString& name() const;
 	[[nodiscard]] const QString& displayName() const;
 	[[nodiscard]] bool isGroup() const;
 
-	PolkitIdentity* polkitIdentity;
+	GObjectRef<PolkitIdentity> polkitIdentity;
 
 private:
 	id_t mId;

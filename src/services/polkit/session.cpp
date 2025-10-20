@@ -13,27 +13,32 @@
 
 namespace qs::service::polkit {
 
-static void
-completedCb(PolkitAgentSession* /*unused*/, gboolean gainedAuthorization, gpointer userData) {
+namespace {
+void completedCb(PolkitAgentSession* /*session*/, gboolean gainedAuthorization, gpointer userData) {
 	auto* self = static_cast<Session*>(userData);
 	emit self->completed(gainedAuthorization);
 }
 
-static void
-requestCb(PolkitAgentSession* /*unused*/, const char* message, gboolean echo, gpointer userData) {
+void requestCb(
+    PolkitAgentSession* /*session*/,
+    const char* message,
+    gboolean echo,
+    gpointer userData
+) {
 	auto* self = static_cast<Session*>(userData);
 	emit self->request(QString::fromUtf8(message), echo);
 }
 
-static void showErrorCb(PolkitAgentSession* /*unused*/, const char* message, gpointer userData) {
+void showErrorCb(PolkitAgentSession* /*session*/, const char* message, gpointer userData) {
 	auto* self = static_cast<Session*>(userData);
 	emit self->showError(QString::fromUtf8(message));
 }
 
-static void showInfoCb(PolkitAgentSession* /*unused*/, const char* message, gpointer userData) {
+void showInfoCb(PolkitAgentSession* /*session*/, const char* message, gpointer userData) {
 	auto* self = static_cast<Session*>(userData);
 	emit self->showInfo(QString::fromUtf8(message));
 }
+} // namespace
 
 Session::Session(PolkitIdentity* identity, const QString& cookie, QObject* parent)
     : QObject(parent) {

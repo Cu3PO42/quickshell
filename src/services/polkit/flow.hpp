@@ -15,6 +15,7 @@ class AuthFlow
     , public Retainable {
 	Q_OBJECT;
 	QML_ELEMENT;
+	Q_DISABLE_COPY_MOVE(AuthFlow);
 	QML_UNCREATABLE("AuthFlow can only be obtained from PolkitAgent.");
 
 	// clang-format off
@@ -24,6 +25,8 @@ class AuthFlow
 	/// The icon to present to the user in association with the message.
 	///
 	/// The icon name follows the [FreeDesktop icon naming specification](https://specifications.freedesktop.org/icon-naming-spec/icon-naming-spec-latest.html).
+	/// Use @@Quickshell.Quickshell.iconPath() to resolve the icon name to an
+	/// actual file path for display.
 	Q_PROPERTY(QString iconName READ iconName CONSTANT);
 
 	/// The action ID represents the action that is being authorized.
@@ -44,10 +47,10 @@ class AuthFlow
 	Q_PROPERTY(QList<Identity*> identities READ identities CONSTANT);
 
 	/// The identity that will be used to authenticate.
-	/// 
-	/// Setting this will abort any ongoing authentication conversations and start a new one.
+	///
+	/// Changing this will abort any ongoing authentication conversations and start a new one.
 	Q_PROPERTY(Identity* selectedIdentity READ selectedIdentity WRITE setSelectedIdentity NOTIFY selectedIdentityChanged);
-	
+
 	/// Indicates that a response from the user is required from the user,
 	/// typically a password.
 	Q_PROPERTY(bool isResponseRequired READ isResponseRequired NOTIFY responseRequestChanged);
@@ -61,6 +64,7 @@ class AuthFlow
 	/// An additional message to present to the user.
 	///
 	/// This may be used to show errors or supplementary information.
+	/// See @@supplementaryIsError to determine if this is an error message.
 	Q_PROPERTY(QString supplementaryMessage READ supplementaryMessage NOTIFY supplementaryChanged);
 
 	/// Indicates whether the supplementary message is an error.
